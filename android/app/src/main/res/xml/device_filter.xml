@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CH340/CH341 - chip paling umum di clone ELM327 USB murah -->
+    <usb-device vendor-id="6790" />
+    <!-- FTDI FT232 -->
+    <usb-device vendor-id="1027" />
+    <!-- CP210x (Silicon Labs) -->
+    <usb-device vendor-id="4292" />
+    <!-- PL2303 (Prolific) -->
+    <usb-device vendor-id="1659" />
+</resources>
