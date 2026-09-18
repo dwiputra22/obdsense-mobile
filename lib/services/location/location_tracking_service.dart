@@ -30,7 +30,7 @@ class LocationTrackingService {
     _sub = Geolocator.getPositionStream(
       locationSettings: _buildLocationSettings(),
     ).listen((pos) {
-      _controller.add(GeoPoint(lat: pos.latitude, lng: pos.longitude));
+      _controller.add(GeoPoint(lat: pos.latitude, lng: pos.longitude, recordedAt: DateTime.now()));
     });
   }
 

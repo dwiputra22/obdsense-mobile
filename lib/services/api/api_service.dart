@@ -64,6 +64,9 @@ class ApiService {
       'fuel_used_liters': trip.fuelUsedLiters,
       'avg_fuel_consumption_l100km': trip.avgFuelConsumptionL100km,
       'eco_score': trip.ecoScore,
+      'health_events': trip.healthEvents
+          .map((e) => {'lat': e.lat, 'lng': e.lng, 'sensor_label': e.sensorLabel, 'severity': e.severity})
+          .toList(),
     });
     return res.data['id'] as int;
   }

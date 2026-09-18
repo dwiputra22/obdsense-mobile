@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 import 'package:geocoding/geocoding.dart';
 import '../../models/geo_point.dart';
+import '../../models/health_event.dart';
 import '../../models/telemetry_data.dart';
 import '../../models/trip_record.dart';
+import '../intelligence/anomaly_detector.dart';
+import '../intelligence/vehicle_baseline_service.dart';
 import 'eco_driving_scorer.dart';
 import 'fuel_efficiency_calculator.dart';
 
@@ -29,7 +32,7 @@ class TripRecorderService {
     _route.add(point);
   }
 
-  Future<TripRecord?> stop() async {
+  Future<TripRecord?> stop({String? vin, VehicleBaselineService? baselineService}) async {
     if (_startTime == null || _buffer.isEmpty) {
       _reset();
       return null;
@@ -56,6 +59,10 @@ class TripRecorderService {
         distanceKm > 0 ? (fuelUsedLiters / distanceKm) * 100 : 0.0;
     final ecoScore = EcoDrivingScorer.score(_buffer);
 
+    final healthEvents = (vin != null && baselineService != null)
+        ? _computeHealthEvents(vin, baselineService, route)
+        : <HealthEvent>[];
+
     String? startAddress;
     String? endAddress;
     if (route.isNotEmpty) {
@@ -77,10 +84,51 @@ class TripRecorderService {
       fuelUsedLiters: fuelUsedLiters,
       avgFuelConsumptionL100km: avgFuelConsumption,
       ecoScore: ecoScore,
+      healthEvents: healthEvents,
     );
 
     _reset();
     return trip;
+  }
+
+  List<HealthEvent> _computeHealthEvents(
+    String vin,
+    VehicleBaselineService baselineService,
+    List<GeoPoint> route,
+  ) {
+    final events = <HealthEvent>[];
+    for (final point in route) {
+      if (point.recordedAt == null) continue;
+      final nearest = _nearestSample(point.recordedAt!);
+      if (nearest == null) continue;
+
+      final anomalies = AnomalyDetector.detect(vin, nearest, baselineService);
+      for (final a in anomalies) {
+        events.add(HealthEvent(
+          lat: point.lat,
+          lng: point.lng,
+          sensorLabel: a.label,
+          severity: a.severity,
+        ));
+      }
+    }
+    return events;
+  }
+
+  TelemetryData? _nearestSample(DateTime at) {
+    if (_buffer.isEmpty) return null;
+    TelemetryData best = _buffer.first;
+    Duration bestDiff = (best.timestamp.difference(at)).abs();
+    for (final s in _buffer) {
+      final diff = (s.timestamp.difference(at)).abs();
+      if (diff < bestDiff) {
+        best = s;
+        bestDiff = diff;
+      }
+    }
+    // Kalau sample terdekat tetap >30 detik jauhnya, anggap tidak ada
+    // data yang cukup relevan untuk titik ini.
+    return bestDiff.inSeconds <= 30 ? best : null;
   }
 
   void _reset() {

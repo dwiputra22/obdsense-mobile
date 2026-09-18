@@ -10,7 +10,10 @@ import 'features/diagnostics/freeze_frame_page.dart';
 import 'features/diagnostics/readiness_page.dart';
 import 'features/intelligence/baseline_status_page.dart';
 import 'features/intelligence/dtc_timeline_page.dart';
+import 'features/intelligence/gps_health_map_page.dart';
 import 'features/intelligence/vehicle_health_page.dart';
+import 'features/trips/performance_test_page.dart';
+import 'features/trips/trip_comparison_page.dart';
 import 'features/shell/main_page.dart';
 import 'features/trips/trip_detail_page.dart';
 import 'features/settings/obd_connection_page.dart';
@@ -65,6 +68,18 @@ class RushSenseApp extends ConsumerWidget {
         GoRoute(
           path: '/dtc-timeline',
           builder: (_, __) => const DtcTimelinePage(),
+        ),
+        GoRoute(
+          path: '/trip-comparison',
+          builder: (_, __) => const TripComparisonPage(),
+        ),
+        GoRoute(
+          path: '/gps-health-map',
+          builder: (_, __) => const GpsHealthMapPage(),
+        ),
+        GoRoute(
+          path: '/performance-test',
+          builder: (_, __) => const PerformanceTestPage(),
         ),
         GoRoute(
           path: '/trip-detail',

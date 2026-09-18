@@ -42,6 +42,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         _hasScanned = true;
       });
 
+      // BARU (Phase 2 - DTC Timeline): catat hasil scan ke riwayat
+      // (terikat VIN), dan kirim Smart Alert kalau ada kode BARU
+      // dibanding scan sebelumnya.
       final vin = ref.read(vehicleProfileProvider).vin;
       if (vin != null) {
         final history = ref.read(dtcHistoryProvider);
@@ -125,6 +128,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
               padding: const EdgeInsets.only(top: 12),
               child: InkWell(
                 borderRadius: BorderRadius.circular(24),
+                // BARU: tap DTC untuk lihat Freeze Frame - kondisi mobil
+                // persis saat kode ini terpicu.
                 onTap: () => context.push('/freeze-frame'),
                 child: GlassCard(
                   child: Column(

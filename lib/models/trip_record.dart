@@ -1,4 +1,5 @@
 import 'geo_point.dart';
+import 'health_event.dart';
 
 class TripRecord {
   final int? remoteId;
@@ -15,6 +16,7 @@ class TripRecord {
   final double fuelUsedLiters;
   final double avgFuelConsumptionL100km;
   final int ecoScore;
+  final List<HealthEvent> healthEvents;
 
   const TripRecord({
     this.remoteId,
@@ -31,6 +33,7 @@ class TripRecord {
     this.fuelUsedLiters = 0,
     this.avgFuelConsumptionL100km = 0,
     this.ecoScore = 100,
+    this.healthEvents = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -49,6 +52,7 @@ class TripRecord {
       'fuelUsedLiters': fuelUsedLiters,
       'avgFuelConsumptionL100km': avgFuelConsumptionL100km,
       'ecoScore': ecoScore,
+      'healthEvents': healthEvents.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -72,6 +76,11 @@ class TripRecord {
       fuelUsedLiters: (json['fuelUsedLiters'] as num?)?.toDouble() ?? 0,
       avgFuelConsumptionL100km: (json['avgFuelConsumptionL100km'] as num?)?.toDouble() ?? 0,
       ecoScore: (json['ecoScore'] as num?)?.toInt() ?? 100,
+      healthEvents: json['healthEvents'] == null
+          ? const []
+          : (json['healthEvents'] as List)
+              .map((e) => HealthEvent.fromJson(Map<dynamic, dynamic>.from(e)))
+              .toList(),
     );
   }
 
@@ -91,6 +100,7 @@ class TripRecord {
       fuelUsedLiters: fuelUsedLiters,
       avgFuelConsumptionL100km: avgFuelConsumptionL100km,
       ecoScore: ecoScore,
+      healthEvents: healthEvents,
     );
   }
 }

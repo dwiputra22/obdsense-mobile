@@ -281,7 +281,11 @@ class TripController extends StateNotifier<List<TripRecord>> {
     await _locationSub?.cancel();
     await location.stop();
 
-    final trip = await recorder.stop();
+    final vin = ref.read(vehicleProfileProvider).vin;
+    final trip = await recorder.stop(
+      vin: vin,
+      baselineService: vin != null ? ref.read(vehicleBaselineProvider) : null,
+    );
     if (trip == null) return;
 
     TripRecord finalTrip = trip;

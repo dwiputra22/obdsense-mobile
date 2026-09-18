@@ -1,9 +1,6 @@
 import 'package:hive/hive.dart';
 import '../../models/dtc_scan_record.dart';
 
-/// Ini menyimpan tiap hasil scan (terikat VIN, supaya riwayat mobil A tidak
-/// tercampur mobil B) jadi bisa dilihat sebagai timeline, dan mendeteksi
-/// kode BARU vs kode yang sudah hilang dibanding scan sebelumnya.
 class DtcHistoryService {
   static const _boxName = 'dtc_history_box';
 

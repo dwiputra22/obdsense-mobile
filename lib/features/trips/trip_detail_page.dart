@@ -255,6 +255,14 @@ class _TripRouteMap extends StatelessWidget {
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: InfoWindow(title: 'Selesai', snippet: trip.endAddress),
         ),
+        ...trip.healthEvents.map((e) => Marker(
+              markerId: MarkerId('health_${e.lat}_${e.lng}_${e.sensorLabel}'),
+              position: LatLng(e.lat, e.lng),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                e.severity == 'warning' ? BitmapDescriptor.hueOrange : BitmapDescriptor.hueYellow,
+              ),
+              infoWindow: InfoWindow(title: e.sensorLabel, snippet: 'Anomali (${e.severity})'),
+            )),
       },
       zoomControlsEnabled: false,
       myLocationButtonEnabled: false,

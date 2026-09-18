@@ -61,6 +61,34 @@ class TripsPage extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/trip-comparison'),
+                  icon: const Icon(Icons.compare_arrows),
+                  label: const Text('Compare'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/gps-health-map'),
+                  icon: const Icon(Icons.map),
+                  label: const Text('Health Map'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/performance-test'),
+                  icon: const Icon(Icons.speed),
+                  label: const Text('Perf. Test'),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           if (trips.isEmpty)
             GlassCard(
