@@ -18,6 +18,7 @@ Future<void> main() async {
   await storage.init();
 
   await VehicleBaselineService().init();
+  await VehicleBaselineService().initSnapshots();
   await DtcHistoryService().init();
 
   final notifications = NotificationService();

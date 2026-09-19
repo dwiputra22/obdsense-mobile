@@ -12,6 +12,7 @@ import 'features/intelligence/ai_mechanic_page.dart';
 import 'features/intelligence/baseline_status_page.dart';
 import 'features/intelligence/dtc_timeline_page.dart';
 import 'features/intelligence/gps_health_map_page.dart';
+import 'features/intelligence/vehicle_fingerprint_page.dart';
 import 'features/intelligence/vehicle_health_page.dart';
 import 'features/trips/performance_test_page.dart';
 import 'features/trips/trip_comparison_page.dart';
@@ -65,6 +66,10 @@ class RushSenseApp extends ConsumerWidget {
         GoRoute(
           path: '/ai-mechanic',
           builder: (_, __) => const AiMechanicPage(),
+        ),
+        GoRoute(
+          path: '/vehicle-fingerprint',
+          builder: (_, __) => const VehicleFingerprintPage(),
         ),
         GoRoute(
           path: '/baseline-status',

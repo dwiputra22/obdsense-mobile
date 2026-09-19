@@ -288,6 +288,10 @@ class TripController extends StateNotifier<List<TripRecord>> {
     );
     if (trip == null) return;
 
+    if (vin != null) {
+      ref.read(vehicleBaselineProvider).takeSnapshot(vin);
+    }
+
     TripRecord finalTrip = trip;
     try {
       final vehicleId = ref.read(activeVehicleIdProvider);

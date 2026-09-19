@@ -158,6 +158,12 @@ class VehicleHealthPage extends ConsumerWidget {
             label: const Text('Status Pembelajaran Baseline'),
           ),
           const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: () => context.push('/vehicle-fingerprint'),
+            icon: const Icon(Icons.fingerprint),
+            label: const Text('Vehicle Fingerprint (Tren Jangka Panjang)'),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: () => context.push('/dtc-timeline'),
             icon: const Icon(Icons.timeline),

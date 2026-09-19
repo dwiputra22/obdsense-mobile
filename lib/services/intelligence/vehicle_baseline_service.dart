@@ -57,4 +57,37 @@ class VehicleBaselineService {
     }
     return result;
   }
+
+  static const _snapshotBoxName = 'vehicle_baseline_snapshot_box';
+
+  Future<void> initSnapshots() async {
+    await Hive.openBox(_snapshotBoxName);
+  }
+
+  void takeSnapshot(String vin) {
+    final box = Hive.box(_snapshotBoxName);
+    final now = DateTime.now().toIso8601String();
+
+    for (final state in DrivingState.values) {
+      for (final sensor in trackedSensors) {
+        if (sensor == 'rpm' && state != DrivingState.idle) continue;
+        final stat = getBaseline(vin, sensor, state);
+        if (stat == null || !stat.isReliable) continue;
+
+        final key = '$vin|$sensor|${state.name}';
+        final existingRaw = box.get(key) as List? ?? [];
+        final snapshots = existingRaw.map((e) => Map<String, dynamic>.from(e)).toList();
+        snapshots.add({'at': now, 'mean': stat.mean, 'stdDev': stat.stdDev});
+
+        if (snapshots.length > 60) snapshots.removeAt(0);
+        box.put(key, snapshots);
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> getSnapshotHistory(String vin, String sensor, DrivingState state) {
+    final box = Hive.box(_snapshotBoxName);
+    final raw = box.get('$vin|$sensor|${state.name}') as List? ?? [];
+    return raw.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
 }
