@@ -8,6 +8,7 @@ import 'features/diagnostics/diagnostics_page.dart';
 import 'features/diagnostics/ecu_info_page.dart';
 import 'features/diagnostics/freeze_frame_page.dart';
 import 'features/diagnostics/readiness_page.dart';
+import 'features/intelligence/ai_mechanic_page.dart';
 import 'features/intelligence/baseline_status_page.dart';
 import 'features/intelligence/dtc_timeline_page.dart';
 import 'features/intelligence/gps_health_map_page.dart';
@@ -60,6 +61,10 @@ class RushSenseApp extends ConsumerWidget {
         GoRoute(
           path: '/vehicle-health',
           builder: (_, __) => const VehicleHealthPage(),
+        ),
+        GoRoute(
+          path: '/ai-mechanic',
+          builder: (_, __) => const AiMechanicPage(),
         ),
         GoRoute(
           path: '/baseline-status',

@@ -80,4 +80,14 @@ class ApiService {
     });
     return res.data['id'] as int;
   }
+
+  Future<String> analyzeWithAiMechanic(int vehicleId, Map<String, dynamic> context) async {
+    final res = await dio.post('/vehicles/$vehicleId/ai-mechanic', data: context);
+    return res.data['explanation'] as String;
+  }
+
+  Future<List<dynamic>> getAiMechanicHistory(int vehicleId) async {
+    final res = await dio.get('/vehicles/$vehicleId/ai-mechanic');
+    return res.data as List<dynamic>;
+  }
 }

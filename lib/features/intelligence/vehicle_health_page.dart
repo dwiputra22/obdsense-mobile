@@ -163,6 +163,12 @@ class VehicleHealthPage extends ConsumerWidget {
             icon: const Icon(Icons.timeline),
             label: const Text('Riwayat DTC (Timeline)'),
           ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: () => context.push('/ai-mechanic'),
+            icon: const Icon(Icons.psychology),
+            label: const Text('Tanya AI Mechanic'),
+          ),
         ],
       ),
     );
