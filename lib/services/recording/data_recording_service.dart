@@ -22,6 +22,11 @@ class DataRecordingService {
 
   RecordingSession? stop() {
     if (_startedAt == null) return null;
+    if (_samples.isEmpty) {
+      _startedAt = null;
+      _samples.clear();
+      return null;
+    }
     final session = RecordingSession(
       startedAt: _startedAt!,
       endedAt: DateTime.now(),

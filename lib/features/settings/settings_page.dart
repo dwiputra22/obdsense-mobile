@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
-import '../../providers/app_providers.dart';
 import '../../providers/auto_trip_settings_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/glass_card.dart';
@@ -100,8 +99,7 @@ class SettingsPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Bukan baca dari Google Maps (tidak ada API publik untuk '
-                  'itu) - dua metode nyata di bawah ini.',
+                  'Record Trip via GPS',
                   style: TextStyle(color: context.palette.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
@@ -117,7 +115,7 @@ class SettingsPage extends ConsumerWidget {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Saat kecepatan GPS terdeteksi berkendara'),
-                  subtitle: const Text('GPS jalan terus di background - lebih boros baterai'),
+                  subtitle: const Text('GPS jalan terus di background'),
                   value: autoTripSettings.autoStartOnSpeedThreshold,
                   onChanged: (value) => ref
                       .read(autoTripSettingsProvider.notifier)

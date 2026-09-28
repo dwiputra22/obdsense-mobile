@@ -30,6 +30,7 @@ dependencies:
   dio: ^5.11.1
   flutter_blue_plus: ^2.3.12
   google_fonts: ^8.2.1
+  animated_splash_themes: ^1.1.4
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +40,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/icon-rushsense.png
 
 flutter_launcher_icons:
   android: true

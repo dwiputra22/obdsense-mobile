@@ -5,8 +5,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app.dart';
 import 'data/local/local_storage_service.dart';
 import 'providers/app_providers.dart';
-import 'services/intelligence/dtc_history_service.dart';
-import 'services/intelligence/vehicle_baseline_service.dart';
 import 'services/notifications/notification_service.dart';
 
 Future<void> main() async {
@@ -16,10 +14,6 @@ Future<void> main() async {
 
   final storage = LocalStorageService();
   await storage.init();
-
-  await VehicleBaselineService().init();
-  await VehicleBaselineService().initSnapshots();
-  await DtcHistoryService().init();
 
   final notifications = NotificationService();
   await notifications.init();

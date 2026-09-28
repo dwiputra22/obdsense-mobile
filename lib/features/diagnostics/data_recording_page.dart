@@ -21,7 +21,9 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
   @override
   Widget build(BuildContext context) {
     final recorder = ref.watch(dataRecordingProvider);
+    final recordingActive = ref.watch(dataRecordingActiveProvider);
     final palette = context.palette;
+    final obdConnected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Data Recording')),
@@ -44,7 +46,13 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
                   style: TextStyle(color: palette.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
-                if (recorder.isRecording) ...[
+                Row(children: [
+                  Icon(obdConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, size: 17, color: obdConnected ? AppColors.green : palette.muted),
+                  const SizedBox(width: 7),
+                  Text(obdConnected ? 'OBD tersambung' : 'OBD belum tersambung', style: TextStyle(color: obdConnected ? AppColors.green : palette.muted, fontWeight: FontWeight.w600)),
+                ]),
+                const SizedBox(height: 12),
+                if (recordingActive) ...[
                   Text(
                     '● Merekam... ${recorder.sampleCount} sample',
                     style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
@@ -55,6 +63,7 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         final session = recorder.stop();
+                        ref.read(dataRecordingActiveProvider.notifier).state = false;
                         setState(() => _lastSession = session);
                       },
                       icon: const Icon(Icons.stop),
@@ -65,12 +74,13 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
+                      onPressed: obdConnected ? () {
                         recorder.start();
+                        ref.read(dataRecordingActiveProvider.notifier).state = true;
                         setState(() => _lastSession = null);
-                      },
+                      } : null,
                       icon: const Icon(Icons.fiber_manual_record),
-                      label: const Text('Mulai Rekaman'),
+                      label: Text(obdConnected ? 'Mulai Rekaman' : 'Hubungkan OBD untuk Merekam'),
                     ),
                   ),
               ],

@@ -38,6 +38,12 @@ class MaintenanceController extends StateNotifier<List<MaintenanceRecord>> {
         notes: record.notes,
         date: record.date,
         odometer: record.odometer,
+        category: record.category,
+        status: record.status,
+        cost: record.cost,
+        workshop: record.workshop,
+        nextOdometer: record.nextOdometer,
+        nextDate: record.nextDate,
       );
     } catch (_) {
       // Tetap simpan lokal walau sync gagal.
@@ -58,6 +64,12 @@ class MaintenanceController extends StateNotifier<List<MaintenanceRecord>> {
         notes: record.notes,
         date: record.date,
         odometer: record.odometer,
+        category: record.category,
+        status: record.status,
+        cost: record.cost,
+        workshop: record.workshop,
+        nextOdometer: record.nextOdometer,
+        nextDate: record.nextDate,
       );
       await storage.updateMaintenanceAt(index, updated);
       load();

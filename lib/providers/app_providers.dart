@@ -31,11 +31,11 @@ final vehicleProfileProvider = Provider<VehicleProfile>((ref) {
   final storage = ref.watch(localStorageProvider);
   return storage.getVehicleProfile() ??
       const VehicleProfile(
-        brand: 'Toyota',
-        model: 'All New Rush',
-        year: 2019,
-        nickname: 'Rush',
-        engineName: '2NR-VE',
+        brand: '',
+        model: '',
+        year: 0,
+        nickname: '',
+        engineName: '',
       );
 });
 
@@ -215,6 +215,9 @@ final dataRecordingProvider = Provider<DataRecordingService>((ref) {
   return DataRecordingService();
 });
 
+final dataRecordingActiveProvider = StateProvider<bool>((ref) => false);
+final tripRecordingActiveProvider = StateProvider<bool>((ref) => false);
+
 final autoTripDetectionProvider = Provider<AutoTripDetectionService>((ref) {
   final service = AutoTripDetectionService(
     onDriveDetectedStart: () {
@@ -267,7 +270,12 @@ class TripController extends StateNotifier<List<TripRecord>> {
   }) : super(storage.getTrips());
 
   Future<void> startTrip() async {
+    final manager = ref.read(obdConnectionManagerProvider);
+    if (manager == null || !manager.isConnected) return;
+    if (recorder.isRecording) return;
+
     recorder.start();
+    ref.read(tripRecordingActiveProvider.notifier).state = true;
     await location.start();
     await _locationSub?.cancel();
     _locationSub = location.points.listen(recorder.addLocationPoint);
@@ -278,6 +286,7 @@ class TripController extends StateNotifier<List<TripRecord>> {
   }
 
   Future<void> stopTrip() async {
+    if (!recorder.isRecording) return;
     await _locationSub?.cancel();
     await location.stop();
 
@@ -286,6 +295,7 @@ class TripController extends StateNotifier<List<TripRecord>> {
       vin: vin,
       baselineService: vin != null ? ref.read(vehicleBaselineProvider) : null,
     );
+    ref.read(tripRecordingActiveProvider.notifier).state = false;
     if (trip == null) return;
 
     if (vin != null) {

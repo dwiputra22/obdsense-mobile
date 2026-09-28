@@ -10,6 +10,8 @@ class ObdConnectionManager {
 
   ObdConnectionManager(this.transport);
 
+  bool get isConnected => transport.isConnected;
+
   Future<void> connect() async {
     _manualDisconnect = false;
     await transport.connect();

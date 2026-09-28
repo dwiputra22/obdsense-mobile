@@ -28,9 +28,14 @@ class GlassCard extends StatelessWidget {
           ),
         ],
       ),
-      child: DefaultTextStyle.merge(
-        style: TextStyle(color: palette.text),
-        child: child,
+      child: Material(
+        type: MaterialType.transparency,
+        // borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: DefaultTextStyle.merge(
+          style: TextStyle(color: palette.text),
+          child: child,
+        ),
       ),
     );
   }

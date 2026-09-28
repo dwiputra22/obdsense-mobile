@@ -77,6 +77,12 @@ class ApiService {
       'notes': record.notes,
       'performed_at': record.date.toIso8601String(),
       'odometer': record.odometer,
+      'category': record.category,
+      'status': record.status,
+      'cost': record.cost,
+      'workshop': record.workshop,
+      'next_odometer': record.nextOdometer,
+      'next_date': record.nextDate?.toIso8601String(),
     });
     return res.data['id'] as int;
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:animated_splash_themes/animated_splash_themes.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
@@ -23,8 +24,74 @@ import 'features/settings/vehicle_profile_page.dart';
 import 'models/trip_record.dart';
 import 'providers/theme_provider.dart';
 
-class RushSenseApp extends ConsumerWidget {
+// Import service untuk inisialisasi di latar belakang splash
+import 'services/intelligence/dtc_history_service.dart';
+import 'services/intelligence/vehicle_baseline_service.dart';
+import 'services/notifications/notification_service.dart';
+
+class RushSenseApp extends StatefulWidget {
   const RushSenseApp({super.key});
+
+  @override
+  State<RushSenseApp> createState() => _RushSenseAppState();
+}
+
+class _RushSenseAppState extends State<RushSenseApp> {
+  // Status untuk menentukan apakah aplikasi sudah selesai menampilkan splash
+  bool _isSplashFinished = false;
+
+  // Fungsi inisialisasi async agar berjalan serentak saat animasi splash aktif
+  Future<void> _initializeAppServices() async {
+    await VehicleBaselineService().init();
+    await VehicleBaselineService().initSnapshots();
+    await DtcHistoryService().init();
+    final notifications = NotificationService();
+    await notifications.init();
+    
+    // Tunggu sedikit ekstra agar animasi transisi selesai dengan mulus
+    await Future.delayed(const Duration(milliseconds: 2500));
+    
+    if (mounted) {
+      setState(() {
+        _isSplashFinished = true; // Hancurkan splash, aktifkan aplikasi utama
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeAppServices(); // Mulai memuat data begitu aplikasi start
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // KONDISI 1: Jika belum selesai inisialisasi/durasi splash, tampilkan layar animasi saja
+    if (!_isSplashFinished) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: AnimatedSplashScreen(
+          appName: 'RushSense AI',
+          appSubtitle: 'INTELLIGENT OBD VEHICLE MONITOR',
+          iconPath: 'assets/icon/icon-rushsense.png',
+          theme: SplashStyle.neon,
+          duration: const Duration(milliseconds: 2400),
+          transitionDuration: const Duration(milliseconds: 700),
+          backgroundColors: const [Color(0xFF020817), Color(0xFF06142F)],
+          accentColor: const Color(0xFF22D3EE),
+          nextScreen: const SizedBox.shrink(), // Dummy widget karena di-handle oleh status state
+        ),
+      );
+    }
+
+    // KONDISI 2: Jika splash selesai, tampilkan aplikasi utama secara permanen menggunakan GoRouter asli
+    return const _MainAppContent();
+  }
+}
+
+// Widget terpisah untuk Aplikasi Utama agar ConsumerWidget (Riverpod) berjalan normal tanpa mengganggu splash
+class _MainAppContent extends ConsumerWidget {
+  const _MainAppContent();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,63 +100,63 @@ class RushSenseApp extends ConsumerWidget {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, __) => const MainShell(),
+          builder: (_, _) => const MainShell(),
         ),
         GoRoute(
           path: '/diagnostics',
-          builder: (_, __) => const DiagnosticsPage(),
+          builder: (_, _) => const DiagnosticsPage(),
         ),
         GoRoute(
           path: '/all-sensors',
-          builder: (_, __) => const AllSensorsPage(),
+          builder: (_, _) => const AllSensorsPage(),
         ),
         GoRoute(
           path: '/readiness',
-          builder: (_, __) => const ReadinessPage(),
+          builder: (_, _) => const ReadinessPage(),
         ),
         GoRoute(
           path: '/freeze-frame',
-          builder: (_, __) => const FreezeFramePage(),
+          builder: (_, _) => const FreezeFramePage(),
         ),
         GoRoute(
           path: '/ecu-info',
-          builder: (_, __) => const EcuInfoPage(),
+          builder: (_, _) => const EcuInfoPage(),
         ),
         GoRoute(
           path: '/data-recording',
-          builder: (_, __) => const DataRecordingPage(),
+          builder: (_, _) => const DataRecordingPage(),
         ),
         GoRoute(
           path: '/vehicle-health',
-          builder: (_, __) => const VehicleHealthPage(),
+          builder: (_, _) => const VehicleHealthPage(),
         ),
         GoRoute(
           path: '/ai-mechanic',
-          builder: (_, __) => const AiMechanicPage(),
+          builder: (_, _) => const AiMechanicPage(),
         ),
         GoRoute(
           path: '/vehicle-fingerprint',
-          builder: (_, __) => const VehicleFingerprintPage(),
+          builder: (_, _) => const VehicleFingerprintPage(),
         ),
         GoRoute(
           path: '/baseline-status',
-          builder: (_, __) => const BaselineStatusPage(),
+          builder: (_, _) => const BaselineStatusPage(),
         ),
         GoRoute(
           path: '/dtc-timeline',
-          builder: (_, __) => const DtcTimelinePage(),
+          builder: (_, _) => const DtcTimelinePage(),
         ),
         GoRoute(
           path: '/trip-comparison',
-          builder: (_, __) => const TripComparisonPage(),
+          builder: (_, _) => const TripComparisonPage(),
         ),
         GoRoute(
           path: '/gps-health-map',
-          builder: (_, __) => const GpsHealthMapPage(),
+          builder: (_, _) => const GpsHealthMapPage(),
         ),
         GoRoute(
           path: '/performance-test',
-          builder: (_, __) => const PerformanceTestPage(),
+          builder: (_, _) => const PerformanceTestPage(),
         ),
         GoRoute(
           path: '/trip-detail',
@@ -100,11 +167,11 @@ class RushSenseApp extends ConsumerWidget {
         ),
         GoRoute(
           path: '/obd-connect',
-          builder: (_, __) => const ObdConnectionPage(),
+          builder: (_, _) => const ObdConnectionPage(),
         ),
         GoRoute(
           path: '/vehicle-profile',
-          builder: (_, __) => const VehicleProfilePage(),
+          builder: (_, _) => const VehicleProfilePage(),
         ),
       ],
     );
