@@ -96,7 +96,7 @@ class TripDetailPage extends StatelessWidget {
                       Expanded(
                         child: _StatBlock(
                           label: 'Konsumsi',
-                          value: '${trip.avgFuelConsumptionL100km.toStringAsFixed(1)}',
+                          value: trip.avgFuelConsumptionL100km.toStringAsFixed(1),
                           unit: 'L/100km',
                           color: AppColors.orange,
                         ),

@@ -29,7 +29,7 @@ class MaintenancePage extends ConsumerWidget {
               _field(title, 'Judul servis', Icons.build),
               _field(notes, 'Catatan / part yang diganti', Icons.notes, maxLines: 3),
               DropdownButtonFormField<String>(
-                value: category,
+                initialValue: category,
                 decoration: const InputDecoration(labelText: 'Kategori', border: OutlineInputBorder()),
                 items: const [
                   'Servis Berkala', 'Oli & Filter', 'Rem', 'Ban', 'Kelistrikan',
@@ -39,7 +39,7 @@ class MaintenancePage extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: status,
+                initialValue: status,
                 decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
                 items: const ['Selesai', 'Terjadwal', 'Ditunda']
                     .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -81,7 +81,9 @@ class MaintenancePage extends ConsumerWidget {
       ),
     );
 
-    for (final c in [title, notes, odo, cost, workshop, nextOdo]) c.dispose();
+    for (final c in [title, notes, odo, cost, workshop, nextOdo]) {
+      c.dispose();
+    }
   }
 
   Widget _field(TextEditingController c, String label, IconData icon, {TextInputType? keyboard, int maxLines = 1}) {

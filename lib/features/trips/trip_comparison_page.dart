@@ -67,7 +67,7 @@ class _TripComparisonPageState extends ConsumerState<TripComparisonPage> {
   Widget _tripPicker(String label, List<TripRecord> trips, TripRecord? selected, void Function(TripRecord) onPick) {
     return DropdownButtonFormField<TripRecord>(
       decoration: InputDecoration(labelText: label),
-      value: selected,
+      initialValue: selected,
       isExpanded: true,
       items: trips
           .map((t) => DropdownMenuItem(

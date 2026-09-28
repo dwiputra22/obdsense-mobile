@@ -5,7 +5,7 @@ class RunningStat {
   double mean;
   double _m2;
 
-  RunningStat({this.count = 0, this.mean = 0, double m2 = 0}) : _m2 = m2;
+  RunningStat({this.count = 0, this.mean = 0, this._m2 = 0});
 
   void add(double value) {
     count++;
