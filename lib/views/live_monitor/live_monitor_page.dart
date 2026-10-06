@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -18,15 +19,29 @@ class LiveMonitorPage extends ConsumerStatefulWidget {
 class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
   final List<double> tempHistory = [];
   final List<double> rpmHistory = [];
+  Timer? _chartUpdateTimer;
+  double? _pendingTemp;
+  double? _pendingRpm;
 
   @override
   Widget build(BuildContext context) {
     ref.listen(telemetryProvider, (previous, next) {
-      setState(() {
-        tempHistory.add(next.coolantTempC);
-        rpmHistory.add(next.rpm);
-        if (tempHistory.length > 20) tempHistory.removeAt(0);
-        if (rpmHistory.length > 20) rpmHistory.removeAt(0);
+      _pendingTemp = next.coolantTempC;
+      _pendingRpm = next.rpm;
+
+      // OBD data can arrive frequently. Keep the chart at most 2 UI updates/sec.
+      if (_chartUpdateTimer?.isActive ?? false) return;
+
+      _chartUpdateTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted || _pendingTemp == null || _pendingRpm == null) return;
+        setState(() {
+          tempHistory.add(_pendingTemp!);
+          rpmHistory.add(_pendingRpm!);
+          if (tempHistory.length > 20) tempHistory.removeAt(0);
+          if (rpmHistory.length > 20) rpmHistory.removeAt(0);
+        });
+        _pendingTemp = null;
+        _pendingRpm = null;
       });
     });
 
@@ -113,6 +128,12 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _chartUpdateTimer?.cancel();
+    super.dispose();
   }
 
   void _showTemplatePicker(BuildContext context, WidgetRef ref) {

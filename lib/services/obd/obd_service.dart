@@ -17,6 +17,8 @@ class ObdService {
       StreamController.broadcast();
   Timer? _pollTimer;
   Timer? _extendedPollTimer;
+  bool _telemetryCycleRunning = false;
+  bool _extendedCycleRunning = false;
 
   double _rpm = 0;
   double _speed = 0;
@@ -88,42 +90,59 @@ class ObdService {
   void startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
-      await _readTelemetryCycle();
+      if (_telemetryCycleRunning) return;
+      _telemetryCycleRunning = true;
 
-      final fuelRate = _fuelRateDirect ?? FuelEfficiencyCalculator.fuelRateFromMaf(_maf) ?? 0;
+      try {
+        await _readTelemetryCycle();
 
-      _telemetryController.add(
-        TelemetryData(
-          rpm: _rpm,
-          speed: _speed,
-          coolantTempC: _coolant,
-          batteryVoltage: _voltage,
-          engineLoad: _load,
-          throttlePosition: _throttle,
-          intakeTempC: _intake,
-          timestamp: DateTime.now(),
-          fuelRateLph: fuelRate,
-          fuelLevelPercent: _fuelLevel,
-        ),
-      );
+        final fuelRate = _fuelRateDirect ?? FuelEfficiencyCalculator.fuelRateFromMaf(_maf) ?? 0;
+
+        _telemetryController.add(
+          TelemetryData(
+            rpm: _rpm,
+            speed: _speed,
+            coolantTempC: _coolant,
+            batteryVoltage: _voltage,
+            engineLoad: _load,
+            throttlePosition: _throttle,
+            intakeTempC: _intake,
+            timestamp: DateTime.now(),
+            fuelRateLph: fuelRate,
+            fuelLevelPercent: _fuelLevel,
+          ),
+        );
+      } finally {
+        _telemetryCycleRunning = false;
+      }
     });
 
     _extendedPollTimer?.cancel();
     if (availableExtendedPids.isNotEmpty) {
       _extendedPollTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
-        for (final pidDef in availableExtendedPids) {
-          try {
-            final response = await manager.queue!.send('01${pidDef.pid}');
-            if (!ObdResponseValidator.isValid(response)) continue;
-            final bytes = _extractDataBytes(response, pidDef.pid, pidDef.expectedBytes);
-            if (bytes == null) continue;
-            _extraSensorReadings[pidDef.pid] = pidDef.decode(bytes);
-          } catch (_) {
-            // PID ini gagal kali ini, lanjut ke PID berikutnya - satu
-            // gagal tidak boleh menghentikan seluruh siklus.
+        if (_extendedCycleRunning) return;
+        _extendedCycleRunning = true;
+
+        try {
+          for (final pidDef in availableExtendedPids) {
+            try {
+              final response = await manager.queue!.send('01${pidDef.pid}');
+              if (!ObdResponseValidator.isValid(response)) continue;
+              final bytes =
+                  _extractDataBytes(response, pidDef.pid, pidDef.expectedBytes);
+              if (bytes == null) continue;
+              _extraSensorReadings[pidDef.pid] = pidDef.decode(bytes);
+            } catch (_) {
+              // Satu PID gagal tidak boleh menghentikan seluruh siklus.
+            }
           }
+
+          _extraSensorsController.add(
+            Map.unmodifiable(_extraSensorReadings),
+          );
+        } finally {
+          _extendedCycleRunning = false;
         }
-        _extraSensorsController.add(Map.unmodifiable(_extraSensorReadings));
       });
     }
   }
@@ -203,6 +222,8 @@ class ObdService {
   void stopPolling() {
     _pollTimer?.cancel();
     _extendedPollTimer?.cancel();
+    _telemetryCycleRunning = false;
+    _extendedCycleRunning = false;
   }
 
   void dispose() {

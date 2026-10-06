@@ -102,6 +102,23 @@ class LocalStorageService {
 
   Future<void> savePendingTelemetry(PendingTelemetry item) async {
     final box = Hive.box(pendingTelemetryBox);
+    final vehicleId = item.payload['vehicle_id'];
+
+    for (int i = box.length - 1; i >= 0; i--) {
+      final raw = box.getAt(i);
+      if (raw is Map) {
+        final payload = raw['payload'];
+        if (payload is Map && payload['vehicle_id'] == vehicleId) {
+          await box.putAt(i, item.toJson());
+          return;
+        }
+      }
+    }
+
+    // Hard safety cap for data left by older app versions.
+    while (box.length >= 20) {
+      await box.deleteAt(0);
+    }
     await box.add(item.toJson());
   }
 

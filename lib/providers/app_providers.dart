@@ -115,6 +115,8 @@ class TelemetryNotifier extends StateNotifier<TelemetryData> {
   StreamSubscription? _sub;
   StreamSubscription? _extraSub;
   Timer? _retryTimer;
+  DateTime? _lastTelemetrySyncAt;
+  Future<void>? _telemetrySyncInFlight;
   bool _highTempNotified = false;
   final Set<String> _anomalyNotifiedSensors = {};
 
@@ -173,11 +175,12 @@ class TelemetryNotifier extends StateNotifier<TelemetryData> {
         }
 
         final vehicleId = ref.read(activeVehicleIdProvider);
+        final now = DateTime.now();
+        final shouldSync = _lastTelemetrySyncAt == null ||
+            now.difference(_lastTelemetrySyncAt!) >= const Duration(seconds: 15);
 
-        try {
-          await apiService.sendTelemetry(vehicleId, event);
-        } catch (_) {
-          await syncService.enqueue({
+        if (shouldSync && _telemetrySyncInFlight == null) {
+          final payload = {
             'vehicle_id': vehicleId,
             'rpm': event.rpm,
             'speed': event.speed,
@@ -187,7 +190,21 @@ class TelemetryNotifier extends StateNotifier<TelemetryData> {
             'throttle_position': event.throttlePosition,
             'intake_temp_c': event.intakeTempC,
             'recorded_at': event.timestamp.toIso8601String(),
-          });
+          };
+
+          final future = () async {
+            try {
+              await apiService.sendTelemetry(vehicleId, event);
+              _lastTelemetrySyncAt = DateTime.now();
+            } catch (_) {
+              await syncService.enqueue(payload);
+              _lastTelemetrySyncAt = DateTime.now();
+            } finally {
+              _telemetrySyncInFlight = null;
+            }
+          }();
+
+          _telemetrySyncInFlight = future;
         }
       });
     });
