@@ -4,7 +4,10 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/trip_record.dart';
 import '../../services/trips/eco_driving_scorer.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 
 class TripDetailPage extends StatelessWidget {
   final TripRecord trip;
@@ -14,142 +17,213 @@ class TripDetailPage extends StatelessWidget {
     required this.trip,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final duration = trip.endTime.difference(trip.startTime);
-    final palette = context.palette;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Trip Detail')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (trip.route.length >= 2)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: SizedBox(
-                height: 240,
-                child: _TripRouteMap(trip: trip),
-              ),
-            )
-          else
-            GlassCard(
-              child: Text(
-                'Rute GPS tidak tersedia untuk trip ini (izin lokasi belum '
-                'diaktifkan saat trip berlangsung, atau GPS tidak menangkap '
-                'cukup titik).',
-                style: TextStyle(color: palette.muted),
-              ),
-            ),
-          const SizedBox(height: 16),
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (trip.startAddress != null) ...[
-                  _AddressRow(icon: Icons.trip_origin, label: 'Dari', address: trip.startAddress!),
-                  const SizedBox(height: 6),
-                ],
-                if (trip.endAddress != null)
-                  _AddressRow(icon: Icons.location_on, label: 'Ke', address: trip.endAddress!),
-                const Divider(height: 24),
-                Text('Mulai: ${Formatters.dateTime(trip.startTime)}'),
-                Text('Selesai: ${Formatters.dateTime(trip.endTime)}'),
-                Text('Durasi: ${Formatters.duration(duration)}'),
-                Text('Jarak tempuh: ${trip.distanceKm.toStringAsFixed(1)} km'),
-                const SizedBox(height: 8),
-                Text('Kecepatan rata-rata: ${trip.avgSpeed.toStringAsFixed(1)} km/j'),
-                Text('Kecepatan maksimum: ${trip.maxSpeed.toStringAsFixed(1)} km/j'),
-                Text('Suhu rata-rata: ${trip.avgCoolantTempC.toStringAsFixed(1)}°C'),
-                Text('Suhu maksimum: ${trip.maxCoolantTempC.toStringAsFixed(1)}°C'),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      trip.remoteId != null ? Icons.cloud_done : Icons.cloud_off,
-                      size: 16,
-                      color: trip.remoteId != null ? AppColors.green : palette.muted,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      trip.remoteId != null ? 'Tersinkron ke server' : 'Belum tersinkron',
-                      style: TextStyle(color: palette.muted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Konsumsi BBM & Eco-Driving',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                if (trip.avgFuelConsumptionL100km > 0) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _StatBlock(
-                          label: 'Konsumsi',
-                          value: trip.avgFuelConsumptionL100km.toStringAsFixed(1),
-                          unit: 'L/100km',
-                          color: AppColors.orange,
-                        ),
-                      ),
-                      Expanded(
-                        child: _StatBlock(
-                          label: 'BBM terpakai',
-                          value: trip.fuelUsedLiters.toStringAsFixed(2),
-                          unit: 'liter',
-                          color: AppColors.cyan,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                ] else
-                  Text(
-                    'Data konsumsi BBM tidak tersedia untuk trip ini (ECU '
-                    'kemungkinan tidak merespons PID MAF/fuel rate saat itu).',
-                    style: TextStyle(color: palette.muted, fontSize: 12),
-                  ),
-                Row(
-                  children: [
-                    const Text('Eco score: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(
-                      '${trip.ecoScore}/100 - ${EcoDrivingScorer.label(trip.ecoScore)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: _ecoScoreColor(trip.ecoScore),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Estimasi dari data RPM, throttle, dan kecepatan selama '
-                  'trip - panduan kasar gaya berkendara, bukan penilaian '
-                  'yang tersertifikasi.',
-                  style: TextStyle(color: palette.muted, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Color _ecoScoreColor(int score) {
     if (score >= 85) return AppColors.green;
     if (score >= 70) return AppColors.cyan;
     if (score >= 50) return AppColors.orange;
     return AppColors.red;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = trip.endTime.difference(trip.startTime);
+    final palette = context.palette;
+    final synced = trip.remoteId != null;
+    final ecoColor = _ecoScoreColor(trip.ecoScore);
+
+    return AppPage(
+      title: 'Trip Detail',
+      subtitle: Formatters.dateTime(trip.startTime),
+      trailing: StatusChip(
+        text: synced ? 'Tersinkron' : 'Belum sinkron',
+        color: synced ? AppColors.green : palette.muted,
+        icon: synced ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+      ),
+      children: [
+        Reveal(
+          index: 1,
+          child: trip.route.length >= 2
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: SizedBox(height: 250, child: _TripRouteMap(trip: trip)),
+                )
+              : const NoticeCard(
+                  icon: Icons.location_off_rounded,
+                  text: 'Rute GPS tidak tersedia untuk trip ini (izin lokasi belum diaktifkan saat trip berlangsung, atau GPS tidak menangkap cukup titik).',
+                ),
+        ),
+        const SizedBox(height: 14),
+        if (trip.startAddress != null || trip.endAddress != null)
+          Reveal(
+            index: 2,
+            child: GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (trip.startAddress != null)
+                    _AddressRow(icon: Icons.trip_origin_rounded, color: AppColors.green, label: 'Dari', address: trip.startAddress!),
+                  if (trip.startAddress != null && trip.endAddress != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 19, top: 2, bottom: 2),
+                      child: Container(width: 2, height: 16, color: palette.border),
+                    ),
+                  if (trip.endAddress != null)
+                    _AddressRow(icon: Icons.location_on_rounded, color: AppColors.red, label: 'Ke', address: trip.endAddress!),
+                ],
+              ),
+            ),
+          ),
+        if (trip.startAddress != null || trip.endAddress != null) const SizedBox(height: 14),
+        GridView.count(
+padding: EdgeInsets.zero,
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.55,
+          children: [
+            Reveal(index: 3, child: _StatTile(icon: Icons.route_rounded, color: AppColors.cyan, label: 'Jarak tempuh', value: trip.distanceKm, decimals: 1, unit: 'km')),
+            Reveal(index: 4, child: _StatTile(icon: Icons.timer_rounded, color: AppColors.blue, label: 'Durasi', text: Formatters.duration(duration))),
+            Reveal(index: 5, child: _StatTile(icon: Icons.speed_rounded, color: AppColors.green, label: 'Kec. rata-rata', value: trip.avgSpeed, decimals: 1, unit: 'km/j')),
+            Reveal(index: 6, child: _StatTile(icon: Icons.bolt_rounded, color: AppColors.orange, label: 'Kec. maksimum', value: trip.maxSpeed, decimals: 1, unit: 'km/j')),
+            Reveal(index: 7, child: _StatTile(icon: Icons.thermostat_rounded, color: AppColors.cyan, label: 'Suhu rata-rata', value: trip.avgCoolantTempC, decimals: 1, unit: '°C')),
+            Reveal(
+              index: 8,
+              child: _StatTile(
+                icon: Icons.local_fire_department_rounded,
+                color: trip.maxCoolantTempC >= 100 ? AppColors.red : AppColors.orange,
+                label: 'Suhu maksimum',
+                value: trip.maxCoolantTempC,
+                decimals: 1,
+                unit: '°C',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Reveal(
+          index: 9,
+          child: GlassCard(
+            radius: 28,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Konsumsi BBM & Eco-Driving', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    ProgressRing(
+                      value: trip.ecoScore / 100,
+                      size: 96,
+                      strokeWidth: 10,
+                      color: ecoColor,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedNumber(
+                            value: trip.ecoScore.toDouble(),
+                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: ecoColor, height: 1.0),
+                          ),
+                          Text('eco', style: TextStyle(fontSize: 11, color: palette.muted, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            EcoDrivingScorer.label(trip.ecoScore),
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: ecoColor, letterSpacing: -0.3),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Estimasi dari RPM, throttle, dan kecepatan selama trip - panduan kasar, bukan penilaian tersertifikasi.',
+                            style: TextStyle(color: palette.muted, fontSize: 11.5, height: 1.35),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (trip.avgFuelConsumptionL100km > 0)
+                  Row(
+                    children: [
+                      Expanded(child: _StatBlock(label: 'Konsumsi', value: trip.avgFuelConsumptionL100km.toStringAsFixed(1), unit: 'L/100km', color: AppColors.orange)),
+                      Expanded(child: _StatBlock(label: 'BBM terpakai', value: trip.fuelUsedLiters.toStringAsFixed(2), unit: 'liter', color: AppColors.cyan)),
+                    ],
+                  )
+                else
+                  Text(
+                    'Data konsumsi BBM tidak tersedia untuk trip ini (ECU kemungkinan tidak merespons PID MAF/fuel rate saat itu).',
+                    style: TextStyle(color: palette.muted, fontSize: 12, height: 1.35),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final double? value;
+  final int decimals;
+  final String unit;
+  final String? text;
+
+  const _StatTile({
+    required this.icon,
+    required this.color,
+    required this.label,
+    this.value,
+    this.decimals = 0,
+    this.unit = '',
+    this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    const style = TextStyle(fontSize: 22, fontWeight: FontWeight.w800, height: 1.0);
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      radius: 22,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconBubble(icon: icon, color: color, size: 30),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600))),
+            ],
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (value != null)
+                AnimatedNumber(value: value!, decimals: decimals, style: style)
+              else
+                Text(text ?? '-', style: style),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Padding(padding: const EdgeInsets.only(bottom: 2), child: Text(unit, style: TextStyle(color: palette.muted, fontSize: 11.5))),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -171,13 +245,13 @@ class _StatBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: context.palette.muted, fontSize: 12)),
+        Text(label, style: TextStyle(color: context.palette.muted, fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
             const SizedBox(width: 4),
             Text(unit, style: TextStyle(color: context.palette.muted, fontSize: 11)),
           ],
@@ -189,27 +263,27 @@ class _StatBlock extends StatelessWidget {
 
 class _AddressRow extends StatelessWidget {
   final IconData icon;
+  final Color color;
   final String label;
   final String address;
 
-  const _AddressRow({required this.icon, required this.label, required this.address});
+  const _AddressRow({required this.icon, required this.color, required this.label, required this.address});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: AppColors.cyan),
-        const SizedBox(width: 8),
+        IconBubble(icon: icon, color: color, size: 38),
+        const SizedBox(width: 12),
         Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: DefaultTextStyle.of(context).style,
-              children: [
-                TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                TextSpan(text: address),
-              ],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: context.palette.muted, fontSize: 11.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(address, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.3)),
+            ],
           ),
         ),
       ],

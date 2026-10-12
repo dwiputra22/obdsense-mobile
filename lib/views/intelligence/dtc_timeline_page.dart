@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../providers/app_providers.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 
 class DtcTimelinePage extends ConsumerWidget {
   const DtcTimelinePage({super.key});
@@ -14,67 +17,84 @@ class DtcTimelinePage extends ConsumerWidget {
     final palette = context.palette;
 
     if (vin == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Riwayat DTC')),
-        body: Center(
-          child: Text('Belum ada VIN - scan dulu di Vehicle Profile.',
-              style: TextStyle(color: palette.muted)),
-        ),
+      return const AppPage(
+        title: 'Riwayat DTC',
+        subtitle: 'Linimasa kode error',
+        children: [
+          NoticeCard(icon: Icons.qr_code_scanner_rounded, color: AppColors.orange, text: 'Belum ada VIN - scan dulu di Vehicle Profile.'),
+        ],
       );
     }
 
     final history = ref.read(dtcHistoryProvider).getHistory(vin);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Riwayat DTC')),
-      body: history.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text(
-                  'Belum ada riwayat scan DTC. Riwayat terkumpul tiap kali '
-                  'Anda tekan "Scan DTC" di halaman Diagnostics.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: palette.muted),
+    return AppPage(
+      title: 'Riwayat DTC',
+      subtitle: history.isEmpty ? 'Linimasa kode error' : '${history.length} kali scan',
+      children: [
+        if (history.isEmpty)
+          const NoticeCard(
+            icon: Icons.history_rounded,
+            text: 'Belum ada riwayat scan DTC. Riwayat terkumpul tiap kali Anda tekan "Scan sekarang" di halaman Diagnostics.',
+          )
+        else
+          for (var i = 0; i < history.length; i++)
+            Reveal(
+              index: 1 + (i > 8 ? 8 : i),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 26,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 14,
+                            height: 14,
+                            margin: const EdgeInsets.only(top: 18),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: history[i].codes.isEmpty ? AppColors.green : AppColors.red,
+                              border: Border.all(color: palette.bg, width: 3),
+                            ),
+                          ),
+                          if (i != history.length - 1)
+                            Expanded(child: Container(width: 2, color: palette.border)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: GlassCard(
+                          radius: 22,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                Formatters.dateTime(history[i].scannedAt),
+                                style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 8),
+                              if (history[i].codes.isEmpty)
+                                const StatusChip(text: 'Bersih - tidak ada DTC', color: AppColors.green, icon: Icons.verified_rounded)
+                              else
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: history[i].codes.map((c) => StatusChip(text: c, color: AppColors.red)).toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: history.length,
-              itemBuilder: (context, i) {
-                final record = history[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: GlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          Formatters.dateTime(record.scannedAt),
-                          style: TextStyle(color: palette.muted, fontSize: 12),
-                        ),
-                        const SizedBox(height: 6),
-                        if (record.codes.isEmpty)
-                          const Text('Bersih - tidak ada DTC',
-                              style: TextStyle(color: AppColors.green))
-                        else
-                          Wrap(
-                            spacing: 8,
-                            children: record.codes
-                                .map((c) => Chip(
-                                      label: Text(c),
-                                      backgroundColor: AppColors.red.withValues(alpha: 0.15),
-                                      labelStyle: const TextStyle(color: AppColors.red),
-                                    ))
-                                .toList(),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
             ),
+      ],
     );
   }
 }

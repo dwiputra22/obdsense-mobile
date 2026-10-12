@@ -9,7 +9,10 @@ import '../../services/obd/obd_transport_type.dart';
 import '../../services/obd/usb_elm_transport.dart';
 import '../../services/obd/wifi_elm_transport.dart';
 import '../../services/permissions/permission_service.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/auto_trip_settings_provider.dart';
 
@@ -63,6 +66,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   }
 
   Future<void> scanBluetooth() async {
+    if (loading) return;
     setState(() {
       loading = true;
       bluetoothResults = [];
@@ -117,6 +121,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   }
 
   Future<void> connectBluetooth(BluetoothDevice device) async {
+    if (loading) return;
     setState(() {
       loading = true;
       status = 'Menghubungkan ke ${device.platformName.isEmpty ? device.remoteId.str : device.platformName}...';
@@ -138,6 +143,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
       setState(() => status = 'Host dan port Wi-Fi belum valid.');
       return;
     }
+    if (loading) return;
     setState(() {
       loading = true;
       status = 'Menguji koneksi Wi-Fi OBD ke $host:$port...';
@@ -153,6 +159,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   }
 
   Future<void> scanUsb() async {
+    if (loading) return; //
     setState(() {
       loading = true;
       usbPorts = [];
@@ -177,6 +184,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   }
 
   Future<void> connectUsb(String portEntry) async {
+    if (loading) return;
     setState(() {
       loading = true;
       status = 'Menghubungkan adapter USB...';
@@ -220,92 +228,240 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
     await ref.read(tripControllerProvider.notifier).startTrip();
   }
 
+  static const _types = [ObdTransportType.bluetooth, ObdTransportType.wifi, ObdTransportType.usb];
+  static const _typeTitles = ['Bluetooth', 'Wi-Fi', 'USB'];
+
+  Color _rssiColor(int rssi) {
+    if (rssi >= -60) return AppColors.green;
+    if (rssi >= -80) return AppColors.orange;
+    return AppColors.red;
+  }
+
   @override
   Widget build(BuildContext context) {
     final connected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Koneksi OBD-II')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(connected ? Icons.check_circle : Icons.info_outline, color: connected ? AppColors.green : AppColors.orange),
-            const SizedBox(width: 8),
-            Expanded(child: Text(connected ? 'OBD terhubung' : 'Belum terhubung', style: const TextStyle(fontWeight: FontWeight.bold))),
-          ]),
-          const SizedBox(height: 10),
-          Text(status, style: const TextStyle(fontSize: 13)),
-          const SizedBox(height: 14),
-          const Text('Jenis Koneksi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          _radio(ObdTransportType.bluetooth, 'Bluetooth', 'Scan perangkat OBD di sekitar'),
-          _radio(ObdTransportType.wifi, 'Wi-Fi', 'Gunakan host dan port adapter'),
-          _radio(ObdTransportType.usb, 'USB / OTG', 'Scan port adapter yang tersambung kabel'),
-        ])),
-        const SizedBox(height: 14),
-        if (selectedType == ObdTransportType.bluetooth) _bluetoothPanel(),
-        if (selectedType == ObdTransportType.wifi) _wifiPanel(),
-        if (selectedType == ObdTransportType.usb) _usbPanel(),
-      ]),
+    final palette = context.palette;
+    final typeIndex = _types.indexOf(selectedType);
+
+    return AppPage(
+      title: 'Koneksi OBD-II',
+      subtitle: connected ? 'Adapter tersambung' : 'Hubungkan adapter ELM327',
+      children: [
+        Reveal(
+          index: 1,
+          child: GlassCard(
+            color: connected ? palette.primary : null,
+            radius: 28,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (connected)
+                      const PulseDot(color: AppColors.green)
+                    else
+                      const IconBubble(icon: Icons.link_off_rounded, color: AppColors.orange, size: 40),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        connected ? 'OBD terhubung' : 'Belum terhubung',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                      ),
+                    ),
+                    if (loading) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.4)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: connected ? palette.onPrimary.withValues(alpha: 0.8) : palette.muted,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Reveal(
+          index: 2,
+          child: PillTabs(
+            labels: _typeTitles,
+            index: typeIndex < 0 ? 0 : typeIndex,
+            onChanged: (i) => setState(() {
+              selectedType = _types[i];
+              status = 'Siap ${_typeTitles[i].toLowerCase()} scan.';
+            }),
+          ),
+        ),
+        const SizedBox(height: 16),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 360),
+          switchInCurve: Curves.easeOutCubic,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topCenter,
+            children: [...previous, if (current != null) current],
+          ),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero).animate(animation),
+              child: child,
+            ),
+          ),
+          child: switch (selectedType) {
+            ObdTransportType.bluetooth => _bluetoothPanel(),
+            ObdTransportType.wifi => _wifiPanel(),
+            ObdTransportType.usb => _usbPanel(),
+          },
+        )),
+      ],
     );
   }
 
-  Widget _radio(ObdTransportType type, String title, String subtitle) => RadioListTile<ObdTransportType>(
-    value: type, groupValue: selectedType, contentPadding: EdgeInsets.zero,
-    onChanged: (v) { if (v != null) setState(() { selectedType = v; status = 'Siap ${title.toLowerCase()} scan.'; }); },
-    title: Text(title), subtitle: Text(subtitle),
-  );
+  Widget _bluetoothPanel() => Column(
+        key: const ValueKey('bt'),
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: loading ? null : scanBluetooth,
+              icon: const Icon(Icons.bluetooth_searching_rounded),
+              label: Text(loading ? 'Memindai…' : 'Scan Bluetooth'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (bluetoothResults.isEmpty)
+            const NoticeCard(icon: Icons.bluetooth_rounded, text: 'Belum ada hasil. Tekan Scan Bluetooth, lalu tunggu sampai proses selesai.'),
+          ...bluetoothResults.map(
+            (result) => Padding(
+              key: ValueKey(result.device.remoteId.str),
+              padding: const EdgeInsets.only(bottom: 10),
+              child: GlassCard(
+                radius: 22,
+                child: Row(
+                  children: [
+                    const IconBubble(icon: Icons.bluetooth_rounded, color: AppColors.blue, size: 42),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_deviceName(result), style: const TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              StatusChip(text: '${result.rssi} dBm', color: _rssiColor(result.rssi)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(result.device.remoteId.str, style: TextStyle(color: context.palette.muted, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
+                      onPressed: loading ? null : () => connectBluetooth(result.device),
+                      child: const Text('Hubungkan'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
 
-  Widget _bluetoothPanel() => Column(children: [
-    SizedBox(width: double.infinity, child: ElevatedButton.icon(
-      onPressed: loading ? null : scanBluetooth,
-      icon: const Icon(Icons.bluetooth_searching),
-      label: Text(loading ? 'Memindai...' : 'Scan Bluetooth'),
-    )),
-    const SizedBox(height: 12),
-    if (bluetoothResults.isEmpty)
-      const GlassCard(child: Text('Belum ada hasil. Tekan Scan Bluetooth, lalu tunggu sampai proses selesai.')),
-    ...bluetoothResults.map((result) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: GlassCard(child: Row(children: [
-        const Icon(Icons.bluetooth, size: 24),
-        const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_deviceName(result), style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 2),
-          Text('${result.device.remoteId.str}  •  RSSI ${result.rssi} dBm', style: const TextStyle(fontSize: 11)),
-        ])),
-        const SizedBox(width: 8),
-        ElevatedButton(onPressed: loading ? null : () => connectBluetooth(result.device), child: const Text('Hubungkan')),
-      ])),
-    )),
-  ]);
-
-  Widget _wifiPanel() => GlassCard(child: Column(children: [
-    TextField(controller: wifiHostController, decoration: const InputDecoration(labelText: 'Host Wi-Fi OBD', prefixIcon: Icon(Icons.wifi), border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16))),
-    const SizedBox(height: 12),
-    TextField(controller: wifiPortController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Port', prefixIcon: Icon(Icons.settings_ethernet), border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16))),
-    const SizedBox(height: 14),
-    SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: loading ? null : connectWifi, icon: const Icon(Icons.link), label: Text(loading ? 'Menguji koneksi...' : 'Uji & Hubungkan Wi-Fi'))),
-    const SizedBox(height: 8),
-    const Text('Wi-Fi OBD umumnya tidak menyediakan daftar perangkat seperti Bluetooth. Aplikasi akan menguji host:port yang diberikan.', style: TextStyle(fontSize: 11)),
-  ]));
-
-  Widget _usbPanel() => Column(children: [
-    SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: loading ? null : scanUsb, icon: const Icon(Icons.usb), label: Text(loading ? 'Memindai...' : 'Scan USB / OTG'))),
-    const SizedBox(height: 12),
-    if (usbPorts.isEmpty) const GlassCard(child: Text('Belum ada port USB ditemukan. Sambungkan adapter melalui OTG lalu scan.')),
-    ...usbPorts.map((port) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: GlassCard(
-          child: Row(children: [
-            const Icon(Icons.usb, size: 24),
-            const SizedBox(width: 10),
-            Expanded(child: Text(port, style: const TextStyle(fontWeight: FontWeight.w600))),
-            ElevatedButton(onPressed: loading ? null : () => connectUsb(port), child: const Text('Hubungkan')),
-          ]),
+  Widget _wifiPanel() => GlassCard(
+        key: const ValueKey('wifi'),
+        child: Column(
+          children: [
+            TextField(
+              controller: wifiHostController,
+              decoration: const InputDecoration(
+                labelText: 'Host Wi-Fi OBD',
+                prefixIcon: Icon(Icons.wifi_rounded),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: wifiPortController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Port',
+                prefixIcon: Icon(Icons.settings_ethernet_rounded),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: loading ? null : connectWifi,
+                icon: const Icon(Icons.link_rounded),
+                label: Text(loading ? 'Menguji koneksi…' : 'Uji & hubungkan Wi-Fi'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Wi-Fi OBD umumnya tidak menyediakan daftar perangkat seperti Bluetooth. Aplikasi akan menguji host:port yang diberikan.',
+              style: TextStyle(fontSize: 11.5, color: context.palette.muted, height: 1.35),
+            ),
+          ],
         ),
       );
-    }),
-  ]);
+
+  Widget _usbPanel() => Column(
+        key: const ValueKey('usb'),
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: loading ? null : scanUsb,
+              icon: const Icon(Icons.usb_rounded),
+              label: Text(loading ? 'Memindai…' : 'Scan USB / OTG'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (usbPorts.isEmpty)
+            const NoticeCard(icon: Icons.usb_rounded, text: 'Belum ada port USB ditemukan. Sambungkan adapter melalui OTG lalu scan.'),
+          ...usbPorts.map(
+            (port) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: GlassCard(
+                radius: 22,
+                child: Row(
+                  children: [
+                    const IconBubble(icon: Icons.usb_rounded, color: AppColors.purple, size: 42),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(port, style: const TextStyle(fontWeight: FontWeight.w700))),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
+                      onPressed: loading ? null : () => connectUsb(port),
+                      child: const Text('Hubungkan'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
 }

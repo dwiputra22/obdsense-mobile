@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/dtc_code.dart';
 import '../../providers/app_providers.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 
 class DiagnosticsPage extends ConsumerStatefulWidget {
   const DiagnosticsPage({super.key});
@@ -66,105 +69,192 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   Color _severityColor(String severity) {
     switch (severity) {
       case 'high':
-        return Colors.redAccent;
+        return AppColors.red;
       case 'medium':
-        return Colors.orangeAccent;
+        return AppColors.orange;
       default:
-        return Colors.greenAccent;
+        return AppColors.green;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Diagnostics')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ElevatedButton.icon(
-            onPressed: _loading ? null : _scanDtc,
-            icon: const Icon(Icons.search),
-            label: Text(_loading ? 'Memindai...' : 'Scan DTC'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/all-sensors'),
-            icon: const Icon(Icons.sensors),
-            label: const Text('Lihat Semua Sensor'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/readiness'),
-            icon: const Icon(Icons.fact_check_outlined),
-            label: const Text('Readiness (Kesiapan Emisi)'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/ecu-info'),
-            icon: const Icon(Icons.memory),
-            label: const Text('Info ECU'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/data-recording'),
-            icon: const Icon(Icons.fiber_manual_record),
-            label: const Text('Data Recording'),
-          ),
-          const SizedBox(height: 16),
-          if (_error != null)
-            GlassCard(
-              child: Text(_error!, style: const TextStyle(color: Colors.orangeAccent)),
-            )
-          else if (!_hasScanned)
-            const GlassCard(
-              child: Text('Tekan "Scan DTC" untuk membaca kode error dari mobil.'),
-            )
-          else if (_codes.isEmpty)
-            const GlassCard(
-              child: Text('Tidak ada DTC aktif. Kondisi mobil bersih dari kode error.'),
-            ),
-          ..._codes.map(
-            (code) => Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(24),
-                // BARU: tap DTC untuk lihat Freeze Frame - kondisi mobil
-                // persis saat kode ini terpicu.
-                onTap: () => context.push('/freeze-frame'),
-                child: GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final palette = context.palette;
+    return AppPage(
+      title: 'Diagnostics',
+      subtitle: 'Baca kode error dan data kendaraan',
+      children: [
+        Reveal(
+          index: 1,
+          child: GlassCard(
+            color: palette.primary,
+            radius: 28,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: palette.onPrimary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(Icons.car_repair_rounded, color: palette.onPrimary),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const Text('Scan DTC', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                          const SizedBox(height: 3),
                           Text(
-                            code.code,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: _severityColor(code.severity),
-                            ),
+                            _hasScanned
+                                ? (_codes.isEmpty ? 'Terakhir: bersih dari kode error' : 'Terakhir: ${_codes.length} kode ditemukan')
+                                : 'Baca kode error langsung dari ECU',
+                            style: TextStyle(color: palette.onPrimary.withValues(alpha: 0.75), fontSize: 12.5),
                           ),
-                          Icon(Icons.chevron_right, color: context.palette.muted),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(code.description),
-                      const SizedBox(height: 8),
-                      Text('Severity: ${code.severity}'),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Ketuk untuk lihat freeze frame',
-                        style: TextStyle(color: context.palette.muted, fontSize: 11),
-                      ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: palette.onPrimary, foregroundColor: palette.primary),
+                    onPressed: _loading ? null : _scanDtc,
+                    icon: _loading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2.4, color: palette.primary),
+                          )
+                        : const Icon(Icons.search_rounded),
+                    label: Text(_loading ? 'Memindai…' : 'Scan sekarang'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+padding: EdgeInsets.zero,
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.45,
+          children: [
+            Reveal(
+              index: 2,
+              child: _ToolTile(icon: Icons.sensors_rounded, label: 'Semua Sensor', color: AppColors.cyan, onTap: () => context.push('/all-sensors')),
+            ),
+            Reveal(
+              index: 3,
+              child: _ToolTile(icon: Icons.fact_check_rounded, label: 'Readiness Emisi', color: AppColors.green, onTap: () => context.push('/readiness')),
+            ),
+            Reveal(
+              index: 4,
+              child: _ToolTile(icon: Icons.memory_rounded, label: 'Info ECU', color: AppColors.blue, onTap: () => context.push('/ecu-info')),
+            ),
+            Reveal(
+              index: 5,
+              child: _ToolTile(icon: Icons.fiber_manual_record_rounded, label: 'Data Recording', color: AppColors.red, onTap: () => context.push('/data-recording')),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const SectionTitle('Hasil scan'),
+        if (_error != null)
+          NoticeCard(icon: Icons.error_outline_rounded, color: AppColors.orange, text: _error!)
+        else if (!_hasScanned)
+          const NoticeCard(icon: Icons.touch_app_rounded, text: 'Tekan "Scan sekarang" untuk membaca kode error dari mobil.')
+        else if (_codes.isEmpty)
+          const NoticeCard(
+            icon: Icons.verified_rounded,
+            color: AppColors.green,
+            title: 'Bersih',
+            text: 'Tidak ada DTC aktif. Kondisi mobil bebas dari kode error.',
+          ),
+        ..._codes.map(
+          (code) {
+            final color = _severityColor(code.severity);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: PressScale(
+                child: GestureDetector(
+                  // Tap DTC untuk lihat Freeze Frame: kondisi mobil saat kode terpicu.
+                  onTap: () => context.push('/freeze-frame'),
+                  child: GlassCard(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        IconBubble(icon: Icons.warning_amber_rounded, color: color),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(code.code, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+                                  const SizedBox(width: 8),
+                                  StatusChip(text: code.severity, color: color),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(code.description, style: const TextStyle(height: 1.35)),
+                              const SizedBox(height: 6),
+                              Text('Ketuk untuk lihat freeze frame', style: TextStyle(color: palette.muted, fontSize: 11.5)),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: palette.muted),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ToolTile extends StatelessWidget {
+  const _ToolTile({required this.icon, required this.label, required this.color, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressScale(
+      child: GestureDetector(
+        onTap: onTap,
+        child: GlassCard(
+          radius: 22,
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconBubble(icon: icon, color: color, size: 40),
+              Text(label, maxLines: 2, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -4,7 +4,10 @@ import '../../core/theme/app_colors.dart';
 import '../../models/ecu_info.dart';
 import '../../providers/app_providers.dart';
 import '../../services/obd/ecu_info_service.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 
 class EcuInfoPage extends ConsumerStatefulWidget {
   const EcuInfoPage({super.key});
@@ -57,58 +60,62 @@ class _EcuInfoPageState extends ConsumerState<EcuInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Info ECU'),
-        actions: [
-          IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh)),
-        ],
+    return AppPage(
+      title: 'Info ECU',
+      subtitle: 'Identitas modul kendaraan',
+      trailing: RoundIconButton(
+        icon: Icons.refresh_rounded,
+        tooltip: 'Muat ulang',
+        onTap: () {
+          if (!_loading) _load();
+        },
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_error != null)
-                  GlassCard(
-                    child: Text(_error!, style: TextStyle(color: palette.muted)),
-                  ),
-                if (_info?.vin != null) ...[
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'VIN', value: _info!.vin!),
-                ],
-                if (_info?.calibrationId != null) ...[
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Calibration ID', value: _info!.calibrationId!),
-                ],
-                if (_info?.ecuName != null) ...[
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Nama ECU', value: _info!.ecuName!),
-                ],
-              ],
-            ),
+      children: [
+        if (_loading)
+          const LoadingBlock(label: 'Membaca ECU…')
+        else ...[
+          if (_error != null) NoticeCard(icon: Icons.info_outline_rounded, color: AppColors.orange, text: _error!),
+          if (_info?.vin != null)
+            Reveal(index: 1, child: _InfoRow(icon: Icons.badge_rounded, color: AppColors.cyan, label: 'VIN', value: _info!.vin!)),
+          if (_info?.calibrationId != null)
+            Reveal(index: 2, child: _InfoRow(icon: Icons.tune_rounded, color: AppColors.blue, label: 'Calibration ID', value: _info!.calibrationId!)),
+          if (_info?.ecuName != null)
+            Reveal(index: 3, child: _InfoRow(icon: Icons.memory_rounded, color: AppColors.purple, label: 'Nama ECU', value: _info!.ecuName!)),
+        ],
+      ],
     );
   }
 }
 
 class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
   final String label;
   final String value;
 
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({required this.icon, required this.color, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(color: context.palette.muted, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        child: Row(
+          children: [
+            IconBubble(icon: icon, color: color, size: 44),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(color: context.palette.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  SelectableText(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

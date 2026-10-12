@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
-import 'package:animated_splash_themes/animated_splash_themes.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
@@ -22,6 +22,8 @@ import 'views/trips/trip_detail_page.dart';
 import 'views/settings/obd_connection_page.dart';
 import 'views/settings/vehicle_profile_page.dart';
 import 'models/trip_record.dart';
+import 'views/splash/splash_page.dart';
+import 'providers/live_history_provider.dart';
 import 'providers/theme_provider.dart';
 
 // Import service untuk inisialisasi di latar belakang splash
@@ -37,146 +39,149 @@ class RushSenseApp extends StatefulWidget {
 }
 
 class _RushSenseAppState extends State<RushSenseApp> {
-  // Status untuk menentukan apakah aplikasi sudah selesai menampilkan splash
-  bool _isSplashFinished = false;
+  // Progres inisialisasi NYATA (dipakai splash untuk menggerakkan mobil).
+  final ValueNotifier<double> _progress = ValueNotifier<double>(0);
+  bool _ready = false;
+  bool _splashDone = false;
 
-  // Fungsi inisialisasi async agar berjalan serentak saat animasi splash aktif
   Future<void> _initializeAppServices() async {
-    await VehicleBaselineService().init();
-    await VehicleBaselineService().initSnapshots();
-    await DtcHistoryService().init();
-    final notifications = NotificationService();
-    await notifications.init();
-    
-    // Tunggu sedikit ekstra agar animasi transisi selesai dengan mulus
-    await Future.delayed(const Duration(milliseconds: 2500));
-    
-    if (mounted) {
-      setState(() {
-        _isSplashFinished = true; // Hancurkan splash, aktifkan aplikasi utama
-      });
+    try {
+      await VehicleBaselineService().init();
+      await VehicleBaselineService().initSnapshots();
+      _progress.value = 0.34;
+      await DtcHistoryService().init();
+      _progress.value = 0.67;
+      await NotificationService().init();
+      _progress.value = 1.0;
+    } catch (e, st) {
+      debugPrint('Inisialisasi service gagal: $e\n$st');
     }
+    if (mounted) setState(() => _ready = true);
   }
 
   @override
   void initState() {
     super.initState();
-    _initializeAppServices(); // Mulai memuat data begitu aplikasi start
+    _initializeAppServices();
+  }
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // KONDISI 1: Jika belum selesai inisialisasi/durasi splash, tampilkan layar animasi saja
-    if (!_isSplashFinished) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: AnimatedSplashScreen(
-          appName: 'RushSense AI',
-          appSubtitle: 'INTELLIGENT OBD VEHICLE MONITOR',
-          iconPath: 'assets/icon/icon-rushsense.png',
-          theme: SplashStyle.neon,
-          duration: const Duration(milliseconds: 2400),
-          transitionDuration: const Duration(milliseconds: 700),
-          backgroundColors: const [Color(0xFF020817), Color(0xFF06142F)],
-          accentColor: const Color(0xFF22D3EE),
-          nextScreen: const SizedBox.shrink(), // Dummy widget karena di-handle oleh status state
-        ),
-      );
-    }
-
-    // KONDISI 2: Jika splash selesai, tampilkan aplikasi utama secara permanen menggunakan GoRouter asli
-    return const _MainAppContent();
+    return _MainAppContent(
+      ready: _ready,
+      splashDone: _splashDone,
+      progress: _progress,
+      onSplashFinished: () {
+        if (mounted) setState(() => _splashDone = true);
+      },
+    );
   }
 }
 
-// Widget terpisah untuk Aplikasi Utama agar ConsumerWidget (Riverpod) berjalan normal tanpa mengganggu splash
+final GoRouter _router = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (_, _) => const MainShell(),
+    ),
+    GoRoute(
+      path: '/diagnostics',
+      builder: (_, _) => const DiagnosticsPage(),
+    ),
+    GoRoute(
+      path: '/all-sensors',
+      builder: (_, _) => const AllSensorsPage(),
+    ),
+    GoRoute(
+      path: '/readiness',
+      builder: (_, _) => const ReadinessPage(),
+    ),
+    GoRoute(
+      path: '/freeze-frame',
+      builder: (_, _) => const FreezeFramePage(),
+    ),
+    GoRoute(
+      path: '/ecu-info',
+      builder: (_, _) => const EcuInfoPage(),
+    ),
+    GoRoute(
+      path: '/data-recording',
+      builder: (_, _) => const DataRecordingPage(),
+    ),
+    GoRoute(
+      path: '/vehicle-health',
+      builder: (_, _) => const VehicleHealthPage(),
+    ),
+    GoRoute(
+      path: '/ai-mechanic',
+      builder: (_, _) => const AiMechanicPage(),
+    ),
+    GoRoute(
+      path: '/vehicle-fingerprint',
+      builder: (_, _) => const VehicleFingerprintPage(),
+    ),
+    GoRoute(
+      path: '/baseline-status',
+      builder: (_, _) => const BaselineStatusPage(),
+    ),
+    GoRoute(
+      path: '/dtc-timeline',
+      builder: (_, _) => const DtcTimelinePage(),
+    ),
+    GoRoute(
+      path: '/trip-comparison',
+      builder: (_, _) => const TripComparisonPage(),
+    ),
+    GoRoute(
+      path: '/gps-health-map',
+      builder: (_, _) => const GpsHealthMapPage(),
+    ),
+    GoRoute(
+      path: '/performance-test',
+      builder: (_, _) => const PerformanceTestPage(),
+    ),
+    GoRoute(
+      path: '/trip-detail',
+      builder: (_, state) {
+        final trip = state.extra as TripRecord;
+        return TripDetailPage(trip: trip);
+      },
+    ),
+    GoRoute(
+      path: '/obd-connect',
+      builder: (_, _) => const ObdConnectionPage(),
+    ),
+    GoRoute(
+      path: '/vehicle-profile',
+      builder: (_, _) => const VehicleProfilePage(),
+    ),
+  ],
+);
+
 class _MainAppContent extends ConsumerWidget {
-  const _MainAppContent();
+  const _MainAppContent({
+    required this.ready,
+    required this.splashDone,
+    required this.progress,
+    required this.onSplashFinished,
+  });
+
+  final bool ready;
+  final bool splashDone;
+  final ValueListenable<double> progress;
+  final VoidCallback onSplashFinished;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (_, _) => const MainShell(),
-        ),
-        GoRoute(
-          path: '/diagnostics',
-          builder: (_, _) => const DiagnosticsPage(),
-        ),
-        GoRoute(
-          path: '/all-sensors',
-          builder: (_, _) => const AllSensorsPage(),
-        ),
-        GoRoute(
-          path: '/readiness',
-          builder: (_, _) => const ReadinessPage(),
-        ),
-        GoRoute(
-          path: '/freeze-frame',
-          builder: (_, _) => const FreezeFramePage(),
-        ),
-        GoRoute(
-          path: '/ecu-info',
-          builder: (_, _) => const EcuInfoPage(),
-        ),
-        GoRoute(
-          path: '/data-recording',
-          builder: (_, _) => const DataRecordingPage(),
-        ),
-        GoRoute(
-          path: '/vehicle-health',
-          builder: (_, _) => const VehicleHealthPage(),
-        ),
-        GoRoute(
-          path: '/ai-mechanic',
-          builder: (_, _) => const AiMechanicPage(),
-        ),
-        GoRoute(
-          path: '/vehicle-fingerprint',
-          builder: (_, _) => const VehicleFingerprintPage(),
-        ),
-        GoRoute(
-          path: '/baseline-status',
-          builder: (_, _) => const BaselineStatusPage(),
-        ),
-        GoRoute(
-          path: '/dtc-timeline',
-          builder: (_, _) => const DtcTimelinePage(),
-        ),
-        GoRoute(
-          path: '/trip-comparison',
-          builder: (_, _) => const TripComparisonPage(),
-        ),
-        GoRoute(
-          path: '/gps-health-map',
-          builder: (_, _) => const GpsHealthMapPage(),
-        ),
-        GoRoute(
-          path: '/performance-test',
-          builder: (_, _) => const PerformanceTestPage(),
-        ),
-        GoRoute(
-          path: '/trip-detail',
-          builder: (_, state) {
-            final trip = state.extra as TripRecord;
-            return TripDetailPage(trip: trip);
-          },
-        ),
-        GoRoute(
-          path: '/obd-connect',
-          builder: (_, _) => const ObdConnectionPage(),
-        ),
-        GoRoute(
-          path: '/vehicle-profile',
-          builder: (_, _) => const VehicleProfilePage(),
-        ),
-      ],
-    );
-
     final themeMode = ref.watch(themeModeProvider);
+    ref.read(liveHistoryProvider);
 
     return MaterialApp.router(
       title: 'RushSense AI',
@@ -184,7 +189,18 @@ class _MainAppContent extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      routerConfig: router,
+      routerConfig: _router,
+      builder: (context, child) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Halaman baru dibangun setelah semua service siap.
+            if (ready) (child ?? const SizedBox.shrink()) else const SizedBox.shrink(),
+            if (!splashDone)
+              SplashPage(progress: progress, ready: ready, onFinished: onSplashFinished),
+          ],
+        );
+      },
     );
   }
 }

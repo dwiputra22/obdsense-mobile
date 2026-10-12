@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/motion/motion.dart';
 import '../home/dashboard_page.dart';
 import '../live_monitor/live_monitor_page.dart';
 import '../maintenance/maintenance_page.dart';
@@ -132,20 +133,23 @@ class _MainShellState extends ConsumerState<MainShell> {
       },
       child: Scaffold(
         body: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
-        children: _pages,
-      ),
-        bottomNavigationBar: BottomNavigationBar(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          children: [
+            for (var i = 0; i < _pages.length; i++)
+              PageScaleFx(controller: _pageController, index: i, child: _pages[i]),
+          ],
+        ),
+        bottomNavigationBar: FluidBottomNav(
+          controller: _pageController,
           currentIndex: currentIndex,
           onTap: _onNavTap,
-          type: BottomNavigationBarType.fixed,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.speed), label: 'Live'),
-            BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Trips'),
-            BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Service'),
-            BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+            NavItemData(Icons.dashboard, 'Home'),
+            NavItemData(Icons.speed, 'Live'),
+            NavItemData(Icons.route, 'Trips'),
+            NavItemData(Icons.build, 'Service'),
+            NavItemData(Icons.settings, 'Settings'),
           ],
         ),
       ),

@@ -9,7 +9,7 @@ final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>(
 });
 
 class ThemeModeController extends StateNotifier<ThemeMode> {
-  ThemeModeController() : super(ThemeMode.system) {
+  ThemeModeController() : super(ThemeMode.light) {
     _load();
   }
 
@@ -23,8 +23,11 @@ class ThemeModeController extends StateNotifier<ThemeMode> {
       case 'light':
         state = ThemeMode.light;
         break;
-      default:
+      case 'system':
         state = ThemeMode.system;
+        break;
+      default:
+        state = ThemeMode.light;
     }
   }
 

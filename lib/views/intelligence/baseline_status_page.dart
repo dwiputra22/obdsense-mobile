@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/app_providers.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 
 const _sensorLabels = {
   'rpm': 'RPM Idle',
@@ -17,6 +20,12 @@ const _stateLabels = {
   'highway': 'Tol/Jalan Cepat',
 };
 
+const _stateIcons = {
+  'idle': Icons.pause_circle_outline_rounded,
+  'city': Icons.location_city_rounded,
+  'highway': Icons.add_road_rounded,
+};
+
 class BaselineStatusPage extends ConsumerWidget {
   const BaselineStatusPage({super.key});
 
@@ -26,83 +35,86 @@ class BaselineStatusPage extends ConsumerWidget {
     final palette = context.palette;
 
     if (vin == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Status Baseline')),
-        body: Center(
-          child: Text('Belum ada VIN - scan dulu di Vehicle Profile.',
-              style: TextStyle(color: palette.muted)),
-        ),
+      return const AppPage(
+        title: 'Status Baseline',
+        subtitle: 'Kebiasaan normal mobil',
+        children: [
+          NoticeCard(icon: Icons.qr_code_scanner_rounded, color: AppColors.orange, text: 'Belum ada VIN - scan dulu di Vehicle Profile.'),
+        ],
       );
     }
 
     final baselines = ref.read(vehicleBaselineProvider).getAllBaselines(vin);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Status Baseline')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          GlassCard(
-            child: Text(
-              'Baseline adalah "kebiasaan normal" mobil ini yang dipelajari '
-              'dari riwayat berkendara - butuh minimal 30 sample per '
-              'kondisi sebelum dianggap cukup diandalkan untuk deteksi '
-              'anomali. Baru mulai / progress rendah bukan error, cuma '
-              'butuh waktu berkendara normal.',
-              style: TextStyle(color: palette.muted, fontSize: 12),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...baselines.entries.map((stateEntry) {
-            final stateName = stateEntry.key;
-            final sensors = stateEntry.value;
+    return AppPage(
+      title: 'Status Baseline',
+      subtitle: 'Kebiasaan normal mobil',
+      children: [
+        const NoticeCard(
+          icon: Icons.school_rounded,
+          color: AppColors.cyan,
+          title: 'Apa itu baseline?',
+          text: 'Kebiasaan normal mobil ini yang dipelajari dari riwayat berkendara. Butuh minimal 30 sample per kondisi sebelum cukup andal untuk deteksi anomali. Progress rendah bukan error - cuma butuh waktu berkendara normal.',
+        ),
+        const SizedBox(height: 14),
+        ...baselines.entries.toList().asMap().entries.map((entry) {
+          final stateName = entry.value.key;
+          final sensors = entry.value.value;
 
-            return Padding(
+          return Reveal(
+            index: 1 + entry.key,
+            child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_stateLabels[stateName] ?? stateName,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        IconBubble(icon: _stateIcons[stateName] ?? Icons.directions_car_rounded, color: AppColors.blue, size: 38),
+                        const SizedBox(width: 12),
+                        Text(_stateLabels[stateName] ?? stateName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5)),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
                     ...sensors.entries.map((sensorEntry) {
                       final stat = sensorEntry.value;
                       final count = stat?.count ?? 0;
-                      final progress = (count / 30).clamp(0.0, 1.0);
+                      final progress = (count / 30).clamp(0.0, 1.0).toDouble();
+                      final reliable = stat?.isReliable ?? false;
 
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(_sensorLabels[sensorEntry.key] ?? sensorEntry.key),
+                                Text(_sensorLabels[sensorEntry.key] ?? sensorEntry.key, style: const TextStyle(fontWeight: FontWeight.w600)),
                                 Text(
                                   stat == null
                                       ? 'Belum ada data'
-                                      : stat.isReliable
+                                      : reliable
                                           ? '${stat.mean.toStringAsFixed(1)} ± ${stat.stdDev.toStringAsFixed(1)}'
                                           : '$count/30 sample',
-                                  style: TextStyle(
-                                    color: (stat?.isReliable ?? false)
-                                        ? AppColors.green
-                                        : palette.muted,
-                                    fontSize: 12,
-                                  ),
+                                  style: TextStyle(color: reliable ? AppColors.green : palette.muted, fontSize: 12, fontWeight: FontWeight.w700),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 4,
-                                backgroundColor: palette.border,
-                                color: progress >= 1 ? AppColors.green : AppColors.cyan,
+                            const SizedBox(height: 6),
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(begin: 0, end: progress),
+                              duration: const Duration(milliseconds: 900),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, v, _) => ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: v,
+                                  minHeight: 7,
+                                  backgroundColor: palette.border.withValues(alpha: 0.6),
+                                  color: progress >= 1 ? AppColors.green : AppColors.cyan,
+                                ),
                               ),
                             ),
                           ],
@@ -112,10 +124,10 @@ class BaselineStatusPage extends ConsumerWidget {
                   ],
                 ),
               ),
-            );
-          }),
-        ],
-      ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

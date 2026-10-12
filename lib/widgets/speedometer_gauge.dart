@@ -1,7 +1,14 @@
 import 'dart:math' as math;
+import 'dart:ui' show FontFeature;
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+
 import '../core/theme/app_colors.dart';
 import '../core/theme/gauge_templates.dart';
+
+const double _startAngle = 2.35619;
+const double _sweepAngle = 4.71239;
 
 class SpeedometerGauge extends StatelessWidget {
   final double value;
@@ -13,6 +20,9 @@ class SpeedometerGauge extends StatelessWidget {
   final GaugeTemplate template;
   final List<double>? majorTicks;
 
+  /// Pembagi angka skala (mis. 1000 -> 0..7 untuk RPM 0..7000).
+  final double tickDivisor;
+
   const SpeedometerGauge({
     super.key,
     required this.value,
@@ -23,46 +33,89 @@ class SpeedometerGauge extends StatelessWidget {
     this.redlineFrom,
     this.template = GaugeTemplates.neonArc,
     this.majorTicks,
+    this.tickDivisor = 1,
   });
 
   @override
   Widget build(BuildContext context) {
-    final clamped = value.clamp(min, max).toDouble();
+    final target = value.isFinite ? value.clamp(min, max).toDouble() : min;
     final palette = context.palette;
+    final ticks = majorTicks ?? _defaultTicks(min, max);
     return AspectRatio(
       aspectRatio: 1,
       child: LayoutBuilder(builder: (context, constraints) {
+        final side = constraints.maxWidth;
+        final compact = side < 100;
+        final showChip = side >= 140;
         return Stack(alignment: Alignment.center, children: [
-          CustomPaint(
-            size: Size.square(constraints.maxWidth),
-            painter: _GaugePainter(
-              value: clamped,
-              min: min,
-              max: max,
-              redlineFrom: redlineFrom,
-              template: template,
-              majorTicks: majorTicks ?? _defaultTicks(min, max),
-              mutedColor: palette.muted,
-              borderColor: palette.border,
+          RepaintBoundary(
+            child: CustomPaint(
+              size: Size.square(side),
+              painter: _GaugeFacePainter(
+                min: min,
+                max: max,
+                redlineFrom: redlineFrom,
+                template: template,
+                majorTicks: ticks,
+                tickDivisor: tickDivisor,
+                drawLabels: !compact,
+                mutedColor: palette.muted,
+                borderColor: palette.border,
+              ),
             ),
           ),
-          Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(clamped.toStringAsFixed(0), style: TextStyle(
-              fontSize: constraints.maxWidth * 0.18,
-              height: 0.95,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-              color: template.needleColor,
-            )),
-            const SizedBox(height: 3),
-            Text(unit.toUpperCase(), style: TextStyle(color: palette.muted, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.7)),
-            const SizedBox(height: 7),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: template.needleColor.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
-              child: Text(label.toUpperCase(), style: TextStyle(color: palette.muted, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1)),
-            ),
-          ]),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: min, end: target),
+            duration: const Duration(milliseconds: 360),
+            curve: Curves.easeOutCubic,
+            builder: (context, v, _) => Stack(alignment: Alignment.center, children: [
+              RepaintBoundary(
+                child: CustomPaint(
+                  size: Size.square(side),
+                  painter: _GaugeValuePainter(value: v, min: min, max: max, template: template),
+                ),
+              ),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(
+                  v.toStringAsFixed(0),
+                  style: TextStyle(
+                    fontSize: side * (compact ? 0.24 : 0.19),
+                    height: 0.95,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                    color: template.needleColor,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (!compact) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    unit.toUpperCase(),
+                    style: TextStyle(
+                      color: palette.muted,
+                      fontSize: (side * 0.08).clamp(9.0, 12.0).toDouble(),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                ],
+                if (showChip) ...[
+                  const SizedBox(height: 7),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: template.needleColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      label.toUpperCase(),
+                      style: TextStyle(color: palette.muted, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1),
+                    ),
+                  ),
+                ],
+              ]),
+            ]),
+          ),
         ]);
       }),
     );
@@ -75,20 +128,28 @@ class SpeedometerGauge extends StatelessWidget {
   }
 }
 
-class _GaugePainter extends CustomPainter {
-  final double value;
+class _GaugeFacePainter extends CustomPainter {
   final double min;
   final double max;
   final double? redlineFrom;
   final GaugeTemplate template;
   final List<double> majorTicks;
+  final double tickDivisor;
+  final bool drawLabels;
   final Color mutedColor;
   final Color borderColor;
 
-  _GaugePainter({required this.value, required this.min, required this.max, required this.redlineFrom, required this.template, required this.majorTicks, required this.mutedColor, required this.borderColor});
-
-  static const _startAngle = 2.35619;
-  static const _sweepAngle = 4.71239;
+  _GaugeFacePainter({
+    required this.min,
+    required this.max,
+    required this.redlineFrom,
+    required this.template,
+    required this.majorTicks,
+    required this.tickDivisor,
+    required this.drawLabels,
+    required this.mutedColor,
+    required this.borderColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -103,14 +164,6 @@ class _GaugePainter extends CustomPainter {
     _paintTrack(canvas, center, radius, trackWidth);
     if (redlineFrom != null) _paintRedline(canvas, center, radius, trackWidth);
     if (template.showTicks) _paintTicks(canvas, center, radius, size.width);
-
-    final fraction = ((value - min) / (max - min)).clamp(0.0, 1.0).toDouble();
-    _paintProgress(canvas, center, radius, trackWidth, fraction);
-
-    if (template.style == GaugeStyle.needle) {
-      _paintNeedle(canvas, center, radius, fraction);
-    }
-
   }
 
   void _paintTrack(Canvas canvas, Offset center, double radius, double width) {
@@ -123,6 +176,72 @@ class _GaugePainter extends CustomPainter {
     final sweep = (_startAngle + _sweepAngle - start).clamp(0.0, _sweepAngle).toDouble();
     final paint = Paint()..color = AppColors.red.withValues(alpha: 0.65)..style = PaintingStyle.stroke..strokeWidth = width..strokeCap = StrokeCap.round;
     canvas.drawArc(Rect.fromCircle(center: center, radius: radius), start, sweep, false, paint);
+  }
+
+  void _paintTicks(Canvas canvas, Offset center, double radius, double gaugeWidth) {
+    const minorPerMajor = 4;
+    final segments = math.max(1, (majorTicks.length - 1) * minorPerMajor);
+    final labelSize = math.max(8.0, gaugeWidth * 0.045);
+    for (int i = 0; i <= segments; i++) {
+      final t = i / segments;
+      final angle = _startAngle + _sweepAngle * t;
+      final isMajor = i % minorPerMajor == 0;
+      final outer = center + Offset(math.cos(angle), math.sin(angle)) * (radius + gaugeWidth * 0.015);
+      final tickLen = isMajor ? radius * 0.10 : radius * 0.045;
+      final inner = center + Offset(math.cos(angle), math.sin(angle)) * (radius - tickLen);
+      final paint = Paint()
+        ..color = isMajor ? mutedColor.withValues(alpha: 0.85) : mutedColor.withValues(alpha: 0.30)
+        ..strokeWidth = isMajor ? 1.8 : 1.0;
+      canvas.drawLine(inner, outer, paint);
+
+      if (isMajor && drawLabels && template.showTickLabels) {
+        final index = i ~/ minorPerMajor;
+        final value = majorTicks[index] / tickDivisor;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: value.toStringAsFixed(0),
+            style: TextStyle(color: mutedColor.withValues(alpha: 0.78), fontSize: labelSize, fontWeight: FontWeight.w600),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final pos = center + Offset(math.cos(angle), math.sin(angle)) * (radius - tickLen - gaugeWidth * 0.065) - Offset(tp.width / 2, tp.height / 2);
+        tp.paint(canvas, pos);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GaugeFacePainter old) =>
+      old.min != min ||
+      old.max != max ||
+      old.redlineFrom != redlineFrom ||
+      old.template != template ||
+      old.tickDivisor != tickDivisor ||
+      old.drawLabels != drawLabels ||
+      old.mutedColor != mutedColor ||
+      old.borderColor != borderColor ||
+      !listEquals(old.majorTicks, majorTicks);
+}
+
+class _GaugeValuePainter extends CustomPainter {
+  final double value;
+  final double min;
+  final double max;
+  final GaugeTemplate template;
+
+  _GaugeValuePainter({required this.value, required this.min, required this.max, required this.template});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.width * 0.39;
+    final trackWidth = size.width * 0.075;
+    final fraction = ((value - min) / (max - min)).clamp(0.0, 1.0).toDouble();
+
+    _paintProgress(canvas, center, radius, trackWidth, fraction);
+    if (template.style == GaugeStyle.needle) {
+      _paintNeedle(canvas, center, radius, fraction);
+    }
   }
 
   void _paintProgress(Canvas canvas, Offset center, double radius, double width, double fraction) {
@@ -148,31 +267,7 @@ class _GaugePainter extends CustomPainter {
     canvas.drawLine(tail, tip, needle);
   }
 
-  void _paintTicks(Canvas canvas, Offset center, double radius, double gaugeWidth) {
-    const minorPerMajor = 4;
-    final segments = math.max(1, (majorTicks.length - 1) * minorPerMajor);
-    for (int i = 0; i <= segments; i++) {
-      final t = i / segments;
-      final angle = _startAngle + _sweepAngle * t;
-      final isMajor = i % minorPerMajor == 0;
-      final outer = center + Offset(math.cos(angle), math.sin(angle)) * (radius + gaugeWidth * 0.015);
-      final tickLen = isMajor ? radius * 0.10 : radius * 0.045;
-      final inner = center + Offset(math.cos(angle), math.sin(angle)) * (radius - tickLen);
-      final paint = Paint()
-        ..color = isMajor ? mutedColor.withValues(alpha: 0.85) : mutedColor.withValues(alpha: 0.30)
-        ..strokeWidth = isMajor ? 1.8 : 1.0;
-      canvas.drawLine(inner, outer, paint);
-
-      if (isMajor && template.showTickLabels) {
-        final index = i ~/ minorPerMajor;
-        final value = majorTicks[index];
-        final tp = TextPainter(text: TextSpan(text: value.toStringAsFixed(0), style: TextStyle(color: mutedColor.withValues(alpha: 0.72), fontSize: gaugeWidth * 0.037, fontWeight: FontWeight.w600)), textDirection: TextDirection.ltr)..layout();
-        final pos = center + Offset(math.cos(angle), math.sin(angle)) * (radius - tickLen - gaugeWidth * 0.055) - Offset(tp.width / 2, tp.height / 2);
-        tp.paint(canvas, pos);
-      }
-    }
-  }
-
   @override
-  bool shouldRepaint(covariant _GaugePainter oldDelegate) => oldDelegate.value != value || oldDelegate.template != template || oldDelegate.redlineFrom != redlineFrom;
+  bool shouldRepaint(covariant _GaugeValuePainter old) =>
+      old.value != value || old.min != min || old.max != max || old.template != template;
 }

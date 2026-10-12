@@ -4,7 +4,10 @@ import '../../core/theme/app_colors.dart';
 import '../../models/vehicle_profile.dart';
 import '../../providers/app_providers.dart';
 import '../../services/obd/ecu_info_service.dart';
+import '../../core/motion/motion.dart';
+import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/ui_kit.dart';
 
 class VehicleProfilePage extends ConsumerStatefulWidget {
   const VehicleProfilePage({super.key});
@@ -160,83 +163,145 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
     final profile = _profile!;
     final hasVin = profile.vin?.isNotEmpty == true;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Vehicle Profile'),
-        actions: [
-          IconButton(
-            icon: Icon(_editing ? Icons.close : Icons.edit),
-            onPressed: () => setState(() => _editing = !_editing),
-          ),
-        ],
+    return AppPage(
+      title: 'Vehicle Profile',
+      subtitle: 'Identitas kendaraan Anda',
+      trailing: RoundIconButton(
+        icon: _editing ? Icons.close_rounded : Icons.edit_rounded,
+        tooltip: _editing ? 'Batal' : 'Ubah',
+        onTap: () => setState(() => _editing = !_editing),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          GlassCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Icon(hasVin ? Icons.verified : Icons.info_outline, size: 18,
-                    color: hasVin ? AppColors.green : AppColors.orange),
-                const SizedBox(width: 8),
-                Expanded(child: Text(hasVin ? profile.vin! : 'VIN belum terdeteksi',
-                    style: const TextStyle(fontWeight: FontWeight.bold))),
-              ]),
-              const SizedBox(height: 6),
-              Text('VIN dibaca dari ECU melalui OBD-II. Hubungkan adaptor terlebih dahulu.',
-                  style: TextStyle(color: palette.muted, fontSize: 11)),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: (!_obdConnected || _scanningVin) ? null : _scanVin,
-                  icon: _scanningVin
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.qr_code_scanner),
-                  label: Text(_scanningVin ? 'Membaca VIN...' : (_obdConnected ? 'Scan VIN dari OBD' : 'Hubungkan OBD untuk Scan VIN')),
+      children: [
+        Reveal(
+          index: 1,
+          child: GlassCard(
+            color: hasVin ? palette.primary : null,
+            radius: 28,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    hasVin
+                        ? Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: palette.onPrimary.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(Icons.verified_rounded, color: palette.onPrimary),
+                          )
+                        : const IconBubble(icon: Icons.info_outline_rounded, color: AppColors.orange, size: 46),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hasVin ? 'VIN terdeteksi' : 'VIN belum terdeteksi',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: hasVin ? palette.onPrimary.withValues(alpha: 0.75) : palette.muted,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            hasVin ? profile.vin! : 'Scan dari OBD-II',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16.5, letterSpacing: 0.3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 10),
+                Text(
+                  'VIN dibaca dari ECU melalui OBD-II. Hubungkan adaptor terlebih dahulu.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: hasVin ? palette.onPrimary.withValues(alpha: 0.7) : palette.muted,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: hasVin
+                        ? ElevatedButton.styleFrom(backgroundColor: palette.onPrimary, foregroundColor: palette.primary)
+                        : null,
+                    onPressed: (!_obdConnected || _scanningVin) ? null : _scanVin,
+                    icon: _scanningVin
+                        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.4, color: hasVin ? palette.primary : palette.onPrimary))
+                        : const Icon(Icons.qr_code_scanner_rounded),
+                    label: Text(_scanningVin ? 'Membaca VIN…' : (_obdConnected ? 'Scan VIN dari OBD' : 'Hubungkan OBD untuk scan VIN')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Reveal(
+          index: 2,
+          child: GlassCard(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Profil kendaraan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 16),
+                  if (!_editing) ...[
+                    _infoRow(Icons.directions_car_rounded, 'Merek', _value(profile.brand)),
+                    _infoRow(Icons.car_repair_rounded, 'Model', _value(profile.model)),
+                    _infoRow(Icons.calendar_today_rounded, 'Tahun', profile.year > 0 ? '${profile.year}' : 'Belum diisi'),
+                    _infoRow(Icons.badge_rounded, 'Nama panggilan', _value(profile.nickname)),
+                    _infoRow(Icons.settings_rounded, 'Mesin', _value(profile.engineName)),
+                    _infoRow(
+                      profile.remoteId != null ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                      'Server',
+                      profile.remoteId != null ? 'Tersinkron #${profile.remoteId}' : 'Belum tersinkron',
+                    ),
+                  ] else ...[
+                    _field(brandCtrl, 'Merek', Icons.directions_car_rounded),
+                    _field(modelCtrl, 'Model', Icons.car_repair_rounded),
+                    _field(yearCtrl, 'Tahun', Icons.calendar_today_rounded, keyboard: TextInputType.number),
+                    _field(nicknameCtrl, 'Nama panggilan', Icons.badge_rounded),
+                    _field(engineCtrl, 'Kode / tipe mesin', Icons.settings_rounded),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Simpan profil'),
+                      ),
+                    ),
+                  ],
+                  if (hasVin) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _syncing ? null : _syncToBackend,
+                        icon: _syncing
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.4))
+                            : const Icon(Icons.cloud_upload_rounded),
+                        label: Text(_syncing ? 'Menyinkronkan…' : 'Sinkronkan ke server'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ]),
+            ),
           ),
-          const SizedBox(height: 14),
-          GlassCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Profil Kendaraan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              if (!_editing) ...[
-                _infoRow('Merek', _value(profile.brand)),
-                _infoRow('Model', _value(profile.model)),
-                _infoRow('Tahun', profile.year > 0 ? '${profile.year}' : 'Belum diisi'),
-                _infoRow('Nama panggilan', _value(profile.nickname)),
-                _infoRow('Mesin', _value(profile.engineName)),
-                _infoRow('Server', profile.remoteId != null ? 'Tersinkron #${profile.remoteId}' : 'Belum tersinkron'),
-              ] else ...[
-                _field(brandCtrl, 'Merek', Icons.directions_car),
-                _field(modelCtrl, 'Model', Icons.car_repair),
-                _field(yearCtrl, 'Tahun', Icons.calendar_today, keyboard: TextInputType.number),
-                _field(nicknameCtrl, 'Nama panggilan', Icons.badge),
-                _field(engineCtrl, 'Kode / tipe mesin', Icons.settings),
-                const SizedBox(height: 6),
-                SizedBox(width: double.infinity, child: ElevatedButton.icon(
-                  onPressed: _save,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Simpan Profil'),
-                )),
-              ],
-              if (hasVin) ...[
-                const SizedBox(height: 16),
-                SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                  onPressed: _syncing ? null : _syncToBackend,
-                  icon: _syncing
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.cloud_upload),
-                  label: Text(_syncing ? 'Menyinkronkan...' : 'Sinkronkan ke Server'),
-                )),
-              ],
-            ]),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -250,20 +315,33 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, size: 20),
-          border: const OutlineInputBorder(),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         ),
       ),
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoRow(IconData icon, String label, String value) {
+    final palette = context.palette;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 120, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-        Expanded(child: Text(value)),
-      ]),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          IconBubble(icon: icon, color: AppColors.cyan, size: 36),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: palette.muted, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 1),
+                Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
