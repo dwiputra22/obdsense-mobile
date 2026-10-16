@@ -5,8 +5,6 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/app_providers.dart';
 import '../../core/motion/motion.dart';
 import '../../widgets/app_page.dart';
-import '../../widgets/glass_card.dart';
-import '../../widgets/ui_kit.dart';
 
 class GpsHealthMapPage extends ConsumerWidget {
   const GpsHealthMapPage({super.key});

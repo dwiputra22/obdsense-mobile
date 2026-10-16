@@ -159,7 +159,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   }
 
   Future<void> scanUsb() async {
-    if (loading) return; //
+    if (loading) return;
     setState(() {
       loading = true;
       usbPorts = [];
@@ -315,7 +315,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
           switchInCurve: Curves.easeOutCubic,
           layoutBuilder: (current, previous) => Stack(
             alignment: Alignment.topCenter,
-            children: [...previous, if (current != null) current],
+            children: [...previous, ?current],
           ),
           transitionBuilder: (child, animation) => FadeTransition(
             opacity: animation,

@@ -5,11 +5,14 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/gauge_templates.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/gauge_template_provider.dart';
+import '../../providers/gear_provider.dart';
 import '../../providers/live_history_provider.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/series_chart.dart';
 import '../../widgets/speedometer_gauge.dart';
+import '../../services/gear/gear_estimator.dart';
 import '../../widgets/ui_kit.dart';
+import 'gear_settings_sheet.dart';
 
 class LiveMonitorPage extends ConsumerStatefulWidget {
   const LiveMonitorPage({super.key});
@@ -47,7 +50,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
     final template = ref.watch(gaugeTemplateProvider);
     final history = ref.watch(liveHistoryProvider);
     final obdConnected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
-    final moving = data.speed >= 1;
+    final gear = ref.watch(gearEstimatorProvider);
 
     final tempColor = data.coolantTempC >= 100 ? AppColors.red : AppColors.cyan;
     final voltColor = data.batteryVoltage < 12.3 ? AppColors.orange : AppColors.purple;
@@ -120,7 +123,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
                   children: [
                     LayoutBuilder(
                       builder: (context, c) {
-                        const centerW = 56.0;
+                        const centerW = 60.0;
                         final g = (c.maxWidth - centerW) / 2;
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -139,7 +142,14 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
                                 majorTicks: const [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000],
                               ),
                             ),
-                            SizedBox(width: centerW, child: _CenterPanel(moving: moving, connected: obdConnected)),
+                            SizedBox(
+                              width: centerW,
+                              child: _CenterPanel(
+                                estimator: gear,
+                                connected: obdConnected,
+                                onTap: () => showGearSettings(context, gear),
+                              ),
+                            ),
                             SizedBox(
                               width: g,
                               child: SpeedometerGauge(
@@ -646,53 +656,88 @@ class _ObdStatusStat extends StatelessWidget {
   }
 }
 
-/// Panel tengah di antara dua gauge: ikon mobil, status gerak, dan titik OBD.
-/// (Posisi gigi tidak tersedia di PID OBD standar, jadi yang ditampilkan
-/// adalah status Jalan/Diam berdasarkan kecepatan.)
+/// Panel tengah di antara dua gauge: gigi yang sedang terpasang (estimasi dari
+/// rasio RPM/kecepatan, lihat GearEstimator), penanda AT/MT, dan titik OBD.
+/// Ketuk untuk membuka pengaturan (Manual/Automatic, jumlah gigi, kalibrasi).
 class _CenterPanel extends StatelessWidget {
-  const _CenterPanel({required this.moving, required this.connected});
+  const _CenterPanel({required this.estimator, required this.connected, required this.onTap});
 
-  final bool moving;
+  final GearEstimator estimator;
   final bool connected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: palette.bg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: palette.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.directions_car_rounded, size: 24, color: moving ? AppColors.cyan : palette.muted),
-          const SizedBox(height: 8),
-          AnimatedContainer(
-            duration: Motion.fast,
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: moving ? palette.primary : palette.panel2,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              moving ? 'JALAN' : 'DIAM',
-              style: TextStyle(
-                fontSize: 8.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-                color: moving ? palette.onPrimary : palette.muted,
+    return AnimatedBuilder(
+      animation: estimator,
+      builder: (context, _) {
+        final r = estimator.reading;
+        final isGear = r.state == GearState.gear;
+        final label = r.label;
+        final color = isGear ? AppColors.cyan : palette.muted;
+        return PressScale(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: palette.bg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.border),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'GIGI',
+                    style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, letterSpacing: 1, color: palette.muted),
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: 30,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      transitionBuilder: (child, anim) =>
+                          ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
+                      child: Text(
+                        label,
+                        key: ValueKey(label),
+                        style: TextStyle(
+                          fontSize: label.length > 1 ? 16 : 26,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (r.state == GearState.learning)
+                    Text('belajar', style: TextStyle(fontSize: 8.5, color: palette.muted, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: palette.panel2, borderRadius: BorderRadius.circular(8)),
+                    child: Text(
+                      estimator.automatic ? 'AT' : 'MT',
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: palette.muted),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  connected
+                      ? const PulseDot(color: AppColors.green, size: 6)
+                      : Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: palette.muted),
+                        ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          connected
-              ? const PulseDot(color: AppColors.green, size: 6)
-              : Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: palette.muted)),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -23,6 +23,7 @@ import 'views/settings/obd_connection_page.dart';
 import 'views/settings/vehicle_profile_page.dart';
 import 'models/trip_record.dart';
 import 'views/splash/splash_page.dart';
+import 'providers/gear_provider.dart';
 import 'providers/live_history_provider.dart';
 import 'providers/theme_provider.dart';
 
@@ -182,6 +183,7 @@ class _MainAppContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     ref.read(liveHistoryProvider);
+    ref.read(gearEstimatorProvider);
 
     return MaterialApp.router(
       title: 'RushSense AI',

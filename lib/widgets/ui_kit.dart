@@ -144,7 +144,7 @@ class SectionTitle extends StatelessWidget {
           Expanded(
             child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
           ),
-          if (trailing != null) trailing!,
+          ?trailing,
         ],
       ),
     );
