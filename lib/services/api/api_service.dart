@@ -3,6 +3,7 @@ import '../../core/constants/app_constants.dart';
 import '../../models/maintenance_record.dart';
 import '../../models/telemetry_data.dart';
 import '../../models/trip_record.dart';
+import '../../core/i18n/app_language.dart';
 
 class ApiService {
   final Dio dio;
@@ -88,7 +89,10 @@ class ApiService {
   }
 
   Future<String> analyzeWithAiMechanic(int vehicleId, Map<String, dynamic> context) async {
-    final res = await dio.post('/vehicles/$vehicleId/ai-mechanic', data: context);
+    final res = await dio.post(
+      '/vehicles/$vehicleId/ai-mechanic',
+      data: {...context, 'language': AppLanguage.current.name},
+    );
     return res.data['explanation'] as String;
   }
 

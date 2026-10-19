@@ -15,7 +15,7 @@ class GearInput {
   final bool connected;
 }
 
-enum GearState { off, standstill, learning, shifting, gear }
+enum GearState { off, standstill, learning, shifting, gear, reverse, neutral }
 
 @immutable
 class GearReading {
@@ -47,7 +47,11 @@ class GearReading {
       case GearState.shifting:
         return '–';
       case GearState.gear:
-        return '${gear ?? '–'}';
+        return automatic ? 'D${gear ?? '–'}' : '${gear ?? '–'}';
+      case GearState.reverse:
+        return 'R';
+      case GearState.neutral:
+        return 'N';
     }
   }
 
@@ -67,11 +71,13 @@ class GearReading {
 /// Profil satu jenis transmisi: jumlah gigi + rasio tiap gigi dalam satuan
 /// "rpm per km/j" (rpm ÷ kecepatan saat gigi itu terpasang).
 class GearProfile {
-  GearProfile({required this.count, List<double?>? ratios})
+  GearProfile({required this.count, List<double?>? ratios, this.reverse})
       : ratios = _fit(ratios ?? const <double?>[], count);
 
   int count;
   List<double?> ratios;
+
+  double? reverse;
 
   static List<double?> _fit(List<double?> src, int n) =>
       List<double?>.generate(n, (i) => i < src.length ? src[i] : null);
@@ -83,7 +89,7 @@ class GearProfile {
 
   int get known => ratios.where((r) => r != null).length;
 
-  Map<String, dynamic> toJson() => {'count': count, 'ratios': ratios};
+  Map<String, dynamic> toJson() => {'count': count, 'ratios': ratios, 'reverse': reverse};
 
   static GearProfile fromJson(Map<String, dynamic>? j, int defaultCount) {
     final count = ((j?['count'] as num?)?.toInt() ?? defaultCount).clamp(3, 8);
@@ -91,6 +97,7 @@ class GearProfile {
     return GearProfile(
       count: count,
       ratios: raw.map((e) => (e as num?)?.toDouble()).toList(),
+      reverse: (j?['reverse'] as num?)?.toDouble(),
     );
   }
 }
@@ -145,13 +152,15 @@ class GearEstimator extends ChangeNotifier {
         final a = GearProfile.fromJson(j['auto'] as Map<String, dynamic>?, 4);
         _manual
           ..count = m.count
-          ..ratios = m.ratios;
+          ..ratios = m.ratios
+          ..reverse = m.reverse;
         _auto
           ..count = a.count
-          ..ratios = a.ratios;
+          ..ratios = a.ratios
+          ..reverse = a.reverse;
       }
     } catch (_) {
-      // Pengaturan rusak/tidak terbaca.
+      // Pengaturan rusak/tidak terbaca: pakai bawaan.
     }
     _loaded = true;
     notifyListeners();
@@ -218,7 +227,29 @@ class GearEstimator extends ChangeNotifier {
     return null;
   }
 
+  void setReverse(double? value) {
+    profile.reverse = value;
+    _shown = null;
+    _save();
+    notifyListeners();
+  }
+
+  String? calibrateReverse() {
+    final inp = _readInput();
+    if (!inp.connected) {
+      return _setMessage('OBD belum tersambung.', true);
+    }
+    if (inp.speed < 3 || inp.rpm < 700) {
+      return _setMessage('Kalibrasi saat memundurkan mobil dengan stabil (kecepatan ≥ 3 km/j).', true);
+    }
+    final ratio = inp.rpm / inp.speed;
+    setReverse(ratio);
+    _setMessage('Mundur (R) tersimpan: ${ratio.toStringAsFixed(1)} rpm per km/j.', false);
+    return null;
+  }
+
   void resetAll() {
+    profile.reverse = null;
     profile.ratios = List<double?>.filled(profile.count, null);
     _onProfileChanged();
     _setMessage('Rasio direset. Berkendaralah agar dipelajari ulang.', false);
@@ -282,9 +313,16 @@ class GearEstimator extends ChangeNotifier {
         next = GearReading(state: GearState.learning, automatic: automatic, known: 0, total: p.count);
       } else {
         _debounce(_match(r, inp.speed, p));
-        next = _shown != null
-            ? GearReading(state: GearState.gear, automatic: automatic, gear: _shown, known: p.known, total: p.count)
-            : GearReading(state: GearState.shifting, automatic: automatic, known: p.known, total: p.count);
+        final shown = _shown;
+        if (shown == null) {
+          next = GearReading(state: GearState.shifting, automatic: automatic, known: p.known, total: p.count);
+        } else if (shown == _codeReverse) {
+          next = GearReading(state: GearState.reverse, automatic: automatic, known: p.known, total: p.count);
+        } else if (shown == _codeNeutral) {
+          next = GearReading(state: GearState.neutral, automatic: automatic, known: p.known, total: p.count);
+        } else {
+          next = GearReading(state: GearState.gear, automatic: automatic, gear: shown, known: p.known, total: p.count);
+        }
       }
     }
 
@@ -293,6 +331,9 @@ class GearEstimator extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  static const int _codeReverse = -1;
+  static const int _codeNeutral = -2;
 
   int? _match(double r, double speed, GearProfile p) {
     final tol = automatic ? 0.13 : 0.09;
@@ -307,14 +348,27 @@ class GearEstimator extends ChangeNotifier {
         best = i;
       }
     }
+
+    final er = p.reverse;
+    if (er != null && er > 0 && speed <= 20) {
+      final errR = math.log(r / er).abs();
+      final e1 = p.ratios.isNotEmpty ? p.ratios[0] : null;
+      final distinct = e1 == null || math.log(er / e1).abs() >= 0.07;
+      if (errR <= tol && distinct && errR < bestErr) return _codeReverse;
+    }
+
     if (best != null && bestErr <= tol) return best + 1;
 
-    // Automatic: pada kecepatan rendah, selip torque converter membuat rasio
-    // lebih tinggi dari gigi 1 -> tetap dianggap gigi 1.
     if (automatic && speed < 25 && p.ratios.isNotEmpty) {
       final e1 = p.ratios[0];
       if (e1 != null && r > e1 * math.exp(-tol)) return 1;
     }
+
+    double? top;
+    for (final e in p.ratios) {
+      if (e != null && e > 0 && (top == null || e < top)) top = e;
+    }
+    if (speed >= 15 && top != null && r < top * math.exp(-0.25)) return _codeNeutral;
     return null;
   }
 

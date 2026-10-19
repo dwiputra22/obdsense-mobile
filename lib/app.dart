@@ -23,6 +23,7 @@ import 'views/settings/obd_connection_page.dart';
 import 'views/settings/vehicle_profile_page.dart';
 import 'models/trip_record.dart';
 import 'views/splash/splash_page.dart';
+import 'core/i18n/app_language.dart';
 import 'providers/gear_provider.dart';
 import 'providers/live_history_provider.dart';
 import 'providers/theme_provider.dart';
@@ -193,14 +194,19 @@ class _MainAppContent extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: _router,
       builder: (context, child) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // Halaman baru dibangun setelah semua service siap.
-            if (ready) (child ?? const SizedBox.shrink()) else const SizedBox.shrink(),
-            if (!splashDone)
-              SplashPage(progress: progress, ready: ready, onFinished: onSplashFinished),
-          ],
+        return ListenableBuilder(
+          listenable: AppLanguage.instance,
+          builder: (context, _) => AppLocaleScope(
+            lang: AppLanguage.current,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (ready) (child ?? const SizedBox.shrink()) else const SizedBox.shrink(),
+                if (!splashDone)
+                  SplashPage(progress: progress, ready: ready, onFinished: onSplashFinished),
+              ],
+            ),
+          ),
         );
       },
     );

@@ -15,18 +15,19 @@ class ObdQueuedCommand {
 
 class ObdCommandQueue {
   final IObdTransport transport;
-  final List<ObdQueuedCommand> _queue = [];
+  final List<ObdQueuedCommand> _queue = <ObdQueuedCommand>[];
   bool _processing = false;
+  bool _disposed = false;
   StreamSubscription<String>? _sub;
-
-  final StringBuffer _buffer = StringBuffer();
+  StringBuffer _buffer = StringBuffer();
 
   ObdCommandQueue(this.transport);
 
   Future<String> send(
       String command, {
-        Duration timeout = const Duration(seconds: 3),
+        Duration timeout = const Duration(milliseconds: 1200),
       }) {
+    if (_disposed) return Future.error(StateError('OBD command queue sudah ditutup.'));
     final completer = Completer<String>();
     _queue.add(
       ObdQueuedCommand(
@@ -35,48 +36,58 @@ class ObdCommandQueue {
         timeout: timeout,
       ),
     );
-    _process();
+    unawaited(_process());
     return completer.future;
   }
 
   Future<void> _process() async {
-    if (_processing || _queue.isEmpty) return;
+    if (_processing || _disposed || _queue.isEmpty) return;
     _processing = true;
+    try {
+      while (_queue.isNotEmpty && !_disposed) {
+        final item = _queue.removeAt(0);
+        _buffer = StringBuffer();
+        final responseCompleter = item.completer;
+        await _sub?.cancel();
+        _sub = transport.responses.listen((chunk) {
+          _buffer.write(chunk);
+          final current = _buffer.toString();
+          if (current.contains('>') && !responseCompleter.isCompleted) {
+            responseCompleter.complete(current);
+          }
+        });
 
-    final item = _queue.removeAt(0);
-    _buffer.clear();
-
-    await transport.send(item.command);
-
-    _sub?.cancel();
-    _sub = transport.responses.listen((chunk) {
-      _buffer.write(chunk);
-      if (_buffer.toString().contains('>')) {
-        final result = _buffer.toString();
-        if (!item.completer.isCompleted) {
-          item.completer.complete(result);
+        Timer? timer;
+        try {
+          timer = Timer(item.timeout, () {
+            if (!responseCompleter.isCompleted) {
+              responseCompleter.completeError(TimeoutException('Timeout command OBD: ${item.command}'));
+            }
+          });
+          await transport.send(item.command);
+          await responseCompleter.future;
+        } catch (error, stack) {
+          if (!responseCompleter.isCompleted) responseCompleter.completeError(error, stack);
+          // Keep queue alive; the caller handles individual command failures.
+          try { await responseCompleter.future; } catch (_) {}
+        } finally {
+          timer?.cancel();
+          await _sub?.cancel();
+          _sub = null;
         }
       }
-    });
-
-    Future.delayed(item.timeout, () {
-      if (!item.completer.isCompleted) {
-        item.completer.completeError(
-          TimeoutException('Timeout command OBD: ${item.command}'),
-        );
-      }
-    });
-
-    try {
-      await item.completer.future;
-    } catch (_) {}
-
-    await _sub?.cancel();
-    _processing = false;
-    _process();
+    } finally {
+      _processing = false;
+      if (_queue.isNotEmpty && !_disposed) unawaited(_process());
+    }
   }
 
   void dispose() {
+    _disposed = true;
     _sub?.cancel();
+    for (final item in _queue) {
+      if (!item.completer.isCompleted) item.completer.completeError(StateError('OBD command queue ditutup.'));
+    }
+    _queue.clear();
   }
 }

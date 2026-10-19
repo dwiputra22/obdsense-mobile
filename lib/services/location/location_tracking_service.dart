@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../models/geo_point.dart';
 import '../permissions/permission_service.dart';
+import '../../core/i18n/translations.dart';
 
 class LocationTrackingService {
   StreamSubscription<Position>? _sub;
@@ -40,9 +41,9 @@ class LocationTrackingService {
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
         intervalDuration: const Duration(seconds: 5),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'Merekam trip',
-          notificationText: 'RushSense AI sedang merekam rute perjalanan Anda',
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationTitle: tr('Merekam trip'),
+          notificationText: tr('RushSense AI sedang merekam rute perjalanan Anda'),
           enableWakeLock: true,
         ),
       );

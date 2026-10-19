@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../core/i18n/tr_text.dart';
 import 'package:flutter/services.dart';
 
 import '../core/motion/motion.dart';
 import '../core/theme/app_colors.dart';
+import '../core/i18n/translations.dart';
 
 /// Header besar rata kiri (judul + subjudul + aksi bulat di kanan).
 class ScreenHeader extends StatelessWidget {
@@ -61,7 +63,7 @@ class RoundIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     return Tooltip(
-      message: tooltip ?? '',
+      message: tr(tooltip ?? ''),
       child: PressScale(
         scale: 0.92,
         child: Material(

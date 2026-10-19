@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/vehicle_profile.dart';
@@ -8,6 +9,7 @@ import '../../core/motion/motion.dart';
 import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
+import '../../core/i18n/translations.dart';
 
 class VehicleProfilePage extends ConsumerStatefulWidget {
   const VehicleProfilePage({super.key});
@@ -22,10 +24,12 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
   late TextEditingController yearCtrl;
   late TextEditingController nicknameCtrl;
   late TextEditingController engineCtrl;
+  late TextEditingController vinCtrl;
 
   bool _editing = false;
   bool _syncing = false;
   bool _scanningVin = false;
+  bool _showManualVinInput = false;
   VehicleProfile? _profile;
 
   @override
@@ -40,6 +44,7 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
     yearCtrl = TextEditingController(text: _profile!.year > 0 ? _profile!.year.toString() : '');
     nicknameCtrl = TextEditingController(text: _profile!.nickname);
     engineCtrl = TextEditingController(text: _profile!.engineName);
+    vinCtrl = TextEditingController(text: _profile!.vin ?? '');
   }
 
   @override
@@ -49,6 +54,7 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
     yearCtrl.dispose();
     nicknameCtrl.dispose();
     engineCtrl.dispose();
+    vinCtrl.dispose();
     super.dispose();
   }
 
@@ -56,7 +62,7 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
 
   Future<void> _save() async {
     final updated = VehicleProfile(
-      vin: _profile?.vin,
+      vin: vinCtrl.text.trim().isEmpty ? _profile?.vin : vinCtrl.text.trim().toUpperCase(),
       remoteId: _profile?.remoteId,
       brand: brandCtrl.text.trim(),
       model: modelCtrl.text.trim(),
@@ -84,7 +90,8 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
     try {
       final info = await EcuInfoService(manager).read();
       if (info.vin == null || info.vin!.trim().isEmpty) {
-        _showMessage('VIN tidak tersedia dari ECU. Tidak semua kendaraan mendukung pembacaan VIN lewat OBD-II generik.');
+        if (mounted) setState(() => _showManualVinInput = true);
+        _showMessage('VIN tidak tersedia dari ECU. Silakan masukkan VIN secara manual.');
         return;
       }
 
@@ -98,13 +105,35 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
       final updated = _profile!.copyWith(vin: info.vin!.trim());
       await storage.saveVehicleProfile(updated);
       ref.invalidate(vehicleProfileProvider);
-      if (mounted) setState(() => _profile = updated);
+      if (mounted) {
+        setState(() { _profile = updated; vinCtrl.text = info.vin!.trim().toUpperCase(); _showManualVinInput = false; });
+      }
       _showMessage('VIN terdeteksi: ${info.vin}');
     } catch (_) {
-      _showMessage('Scan VIN gagal. Pastikan OBD tersambung dan ECU dapat merespons Mode 09.');
+      if (mounted) setState(() => _showManualVinInput = true);
+      _showMessage('Scan VIN gagal. Anda bisa memasukkan VIN secara manual.');
     } finally {
       if (mounted) setState(() => _scanningVin = false);
     }
+  }
+
+  Future<void> _saveManualVin() async {
+    final vin = vinCtrl.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+    if (vin.length != 17 || RegExp(r'[IOQ]').hasMatch(vin)) {
+      _showMessage('VIN harus terdiri dari 17 karakter dan tidak boleh mengandung I, O, atau Q.');
+      return;
+    }
+    final storage = ref.read(localStorageProvider);
+    final check = await storage.checkVinAgainstStored(vin);
+    if (!check.matches && check.previousVin != null && mounted) {
+      final proceed = await _confirmVinMismatch(check.previousVin!, vin);
+      if (proceed != true) return;
+    }
+    final updated = _profile!.copyWith(vin: vin);
+    await storage.saveVehicleProfile(updated);
+    ref.invalidate(vehicleProfileProvider);
+    if (mounted) setState(() { _profile = updated; vinCtrl.text = vin; _showManualVinInput = false; });
+    _showMessage('VIN berhasil disimpan.');
   }
 
   void _showMessage(String message) {
@@ -185,14 +214,14 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
                   children: [
                     hasVin
                         ? Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: palette.onPrimary.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Icon(Icons.verified_rounded, color: palette.onPrimary),
-                          )
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: palette.onPrimary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(Icons.verified_rounded, color: palette.onPrimary),
+                    )
                         : const IconBubble(icon: Icons.info_outline_rounded, color: AppColors.orange, size: 46),
                     const SizedBox(width: 14),
                     Expanded(
@@ -239,6 +268,36 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
                     label: Text(_scanningVin ? 'Membaca VIN…' : (_obdConnected ? 'Scan VIN dari OBD' : 'Hubungkan OBD untuk scan VIN')),
                   ),
                 ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => setState(() => _showManualVinInput = !_showManualVinInput),
+                  icon: const Icon(Icons.keyboard_alt_outlined),
+                  label: Text(_showManualVinInput ? 'Tutup input VIN manual' : 'Input VIN secara manual'),
+                ),
+                if (_showManualVinInput) ...[
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: vinCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 17,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    decoration: const InputDecoration(
+                      labelText: 'VIN kendaraan',
+                      hintText: 'Contoh: 1HGCM82633A004352',
+                      prefixIcon: Icon(Icons.directions_car_filled_outlined),
+                      helperText: 'Masukkan 17 karakter VIN pada STNK atau bodi kendaraan.',
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _saveManualVin,
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Simpan VIN manual'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -313,7 +372,7 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
         keyboardType: keyboard,
         textInputAction: TextInputAction.next,
         decoration: InputDecoration(
-          labelText: label,
+          labelText: tr(label),
           prefixIcon: Icon(icon, size: 20),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         ),

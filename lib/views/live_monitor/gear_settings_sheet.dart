@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../services/gear/gear_estimator.dart';
 import '../../widgets/ui_kit.dart';
+import '../../core/i18n/translations.dart';
 
 Future<void> showGearSettings(BuildContext context, GearEstimator estimator) {
   return showModalBottomSheet<void>(
@@ -18,12 +20,17 @@ class GearSettingsSheet extends StatelessWidget {
 
   final GearEstimator estimator;
 
-  Future<void> _edit(BuildContext context, int index, double? current) async {
+  Future<void> _edit(
+    BuildContext context,
+    String title,
+    double? current,
+    ValueChanged<double> onSave,
+  ) async {
     final v = await showDialog<double>(
       context: context,
-      builder: (_) => _RatioDialog(gear: index + 1, initial: current),
+      builder: (_) => _RatioDialog(title: title, initial: current),
     );
-    if (v != null) estimator.setRatio(index, v);
+    if (v != null) onSave(v);
   }
 
   @override
@@ -89,7 +96,7 @@ class GearSettingsSheet extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'OBD-II standar tidak menyediakan posisi gigi. Gigi diestimasi dari rasio RPM ÷ kecepatan, '
+                            'OBD-II standar tidak menyediakan posisi gigi maupun posisi tuas. Gigi diestimasi dari rasio RPM ÷ kecepatan, '
                             'jadi rasio tiap gigi perlu dipelajari (otomatis saat berkendara) atau dikalibrasi manual. '
                             'Hasil bisa meleset saat pindah gigi, kopling ditekan, atau ada selip.',
                             style: TextStyle(color: palette.muted, fontSize: 11.5, height: 1.4),
@@ -145,12 +152,38 @@ class GearSettingsSheet extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _GearRow(
-                        index: i,
+                        badge: '${i + 1}',
+                        title: 'Gigi ${i + 1}',
+                        calibrateTooltip: 'Kalibrasi: rekam rasio sekarang sebagai gigi ini',
                         ratio: p.ratios[i],
                         onCalibrate: () => estimator.calibrate(i),
-                        onEdit: () => _edit(context, i, p.ratios[i]),
+                        onEdit: () => _edit(context, 'Rasio gigi ${i + 1}', p.ratios[i], (v) => estimator.setRatio(i, v)),
                         onClear: () => estimator.setRatio(i, null),
                       ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _GearRow(
+                      badge: 'R',
+                      title: 'Mundur (R)',
+                      calibrateTooltip: 'Kalibrasi: rekam rasio saat memundurkan mobil',
+                      ratio: p.reverse,
+                      onCalibrate: estimator.calibrateReverse,
+                      onEdit: () => _edit(context, 'Rasio mundur (R)', p.reverse, estimator.setReverse),
+                      onClear: () => estimator.setReverse(null),
+                    ),
+                  ),
+                  if (estimator.automatic)
+                    const _InfoRow(
+                      badge: 'P/N',
+                      title: 'Status tuas (P · R · N · D · L/S)',
+                      text: 'Tidak terbaca dari OBD-II standar. P dan N tidak bisa dibedakan, R dikenali setelah rasio mundur dikalibrasi, dan L/S belum bisa dideteksi. Saat melaju tampil D + gigi aktif.',
+                    )
+                  else
+                    const _InfoRow(
+                      badge: 'N',
+                      title: 'Netral (N)',
+                      text: 'Terdeteksi otomatis: mobil diam, atau melaju dengan RPM jauh di bawah gigi tertinggi (netral atau kopling ditekan).',
                     ),
                   const SizedBox(height: 6),
                   SizedBox(
@@ -212,14 +245,18 @@ class _Stepper extends StatelessWidget {
 
 class _GearRow extends StatelessWidget {
   const _GearRow({
-    required this.index,
+    required this.badge,
+    required this.title,
+    required this.calibrateTooltip,
     required this.ratio,
     required this.onCalibrate,
     required this.onEdit,
     required this.onClear,
   });
 
-  final int index;
+  final String badge;
+  final String title;
+  final String calibrateTooltip;
   final double? ratio;
   final VoidCallback onCalibrate;
   final VoidCallback onEdit;
@@ -247,7 +284,7 @@ class _GearRow extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                '${index + 1}',
+                badge,
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: known ? AppColors.cyan : palette.muted),
               ),
             ),
@@ -257,7 +294,7 @@ class _GearRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Gigi ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(
                   known
@@ -269,12 +306,12 @@ class _GearRow extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: 'Kalibrasi: rekam rasio sekarang sebagai gigi ini',
+            tooltip: tr(calibrateTooltip),
             icon: const Icon(Icons.my_location_rounded, size: 20),
             onPressed: onCalibrate,
           ),
           PopupMenuButton<String>(
-            tooltip: 'Opsi',
+            tooltip: tr('Opsi'),
             onSelected: (v) {
               if (v == 'edit') {
                 onEdit();
@@ -293,10 +330,57 @@ class _GearRow extends StatelessWidget {
   }
 }
 
-class _RatioDialog extends StatefulWidget {
-  const _RatioDialog({required this.gear, this.initial});
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.badge, required this.title, required this.text});
 
-  final int gear;
+  final String badge;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: palette.bg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: palette.panel2, borderRadius: BorderRadius.circular(13)),
+            child: Center(
+              child: Text(badge, style: TextStyle(fontWeight: FontWeight.w800, fontSize: badge.length > 1 ? 11.5 : 16, color: palette.muted)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(text, style: TextStyle(color: palette.muted, fontSize: 11.5, height: 1.35)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dialog input rasio manual. Controller dimiliki State-nya sendiri (dibuang
+/// setelah dialog benar-benar hilang).
+class _RatioDialog extends StatefulWidget {
+  const _RatioDialog({required this.title, this.initial});
+
+  final String title;
   final double? initial;
 
   @override
@@ -326,7 +410,7 @@ class _RatioDialogState extends State<_RatioDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Rasio gigi ${widget.gear}'),
+      title: Text(widget.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -334,7 +418,7 @@ class _RatioDialogState extends State<_RatioDialog> {
             controller: _c,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: 'rpm per km/j', errorText: _error),
+            decoration: InputDecoration(labelText: tr('rpm per km/j'), errorText: _error == null ? null : tr(_error!)),
           ),
           const SizedBox(height: 10),
           Text(

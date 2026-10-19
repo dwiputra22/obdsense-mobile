@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../../models/anomaly.dart';
+import '../../core/i18n/translations.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
@@ -19,10 +20,10 @@ class NotificationService {
   }
 
   Future<void> showHighTempAlert(double tempC) async {
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'high_temp_channel',
-      'High Temperature Alerts',
-      channelDescription: 'Peringatan suhu mesin tinggi',
+      tr('High Temperature Alerts'),
+      channelDescription: tr('Peringatan suhu mesin tinggi'),
       importance: Importance.max,
       priority: Priority.high,
     );
@@ -33,21 +34,21 @@ class NotificationService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     await _plugin.show(
       1001,
-      'Suhu Mesin Tinggi',
-      'Suhu mesin terdeteksi ${tempC.toStringAsFixed(0)}°C. Segera pantau kondisi kendaraan.',
+      tr('Suhu Mesin Tinggi'),
+      tr('Suhu mesin terdeteksi ${tempC.toStringAsFixed(0)}°C. Segera pantau kondisi kendaraan.'),
       details,
     );
   }
 
   Future<void> showAnomalyAlert(Anomaly anomaly) async {
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'anomaly_channel',
-      'Anomaly Alerts',
-      channelDescription: 'Peringatan penyimpangan dari kebiasaan normal mobil',
+      tr('Anomaly Alerts'),
+      channelDescription: tr('Peringatan penyimpangan dari kebiasaan normal mobil'),
       importance: Importance.high,
       priority: Priority.high,
     );
@@ -58,22 +59,22 @@ class NotificationService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     await _plugin.show(
       2000 + anomaly.sensorKey.hashCode % 1000,
-      '${anomaly.label} Tidak Biasa',
-      'Nilai saat ini ${anomaly.actualValue.toStringAsFixed(1)} - biasanya sekitar '
-          '${anomaly.expectedMean.toStringAsFixed(1)} untuk mobil ini.',
+      tr('${anomaly.label} Tidak Biasa'),
+      tr('Nilai saat ini ${anomaly.actualValue.toStringAsFixed(1)} - biasanya sekitar '
+          '${anomaly.expectedMean.toStringAsFixed(1)} untuk mobil ini.'),
       details,
     );
   }
 
   Future<void> showNewDtcAlert(List<String> newCodes) async {
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'dtc_channel',
-      'DTC Alerts',
-      channelDescription: 'Peringatan kode error baru terdeteksi',
+      tr('DTC Alerts'),
+      channelDescription: tr('Peringatan kode error baru terdeteksi'),
       importance: Importance.max,
       priority: Priority.high,
     );
@@ -84,11 +85,11 @@ class NotificationService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     await _plugin.show(
       3000,
-      'Kode Error Baru Terdeteksi',
+      tr('Kode Error Baru Terdeteksi'),
       newCodes.join(', '),
       details,
     );

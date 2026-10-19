@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
@@ -8,6 +9,7 @@ import '../../core/motion/motion.dart';
 import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
+import '../../core/i18n/translations.dart';
 
 class TripComparisonPage extends ConsumerStatefulWidget {
   const TripComparisonPage({super.key});
@@ -81,7 +83,7 @@ class _TripComparisonPageState extends ConsumerState<TripComparisonPage> {
 
   Widget _tripPicker(String label, List<TripRecord> trips, TripRecord? selected, void Function(TripRecord) onPick) {
     return DropdownButtonFormField<TripRecord>(
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(labelText: tr(label)),
       initialValue: selected,
       isExpanded: true,
       items: trips

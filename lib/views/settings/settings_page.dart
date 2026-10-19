@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/i18n/app_language.dart';
 import '../../core/motion/motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auto_trip_settings_provider.dart';
@@ -18,6 +20,7 @@ class SettingsPage extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final autoTripSettings = ref.watch(autoTripSettingsProvider);
     final palette = context.palette;
+    final lang = AppLocaleScope.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -39,9 +42,19 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Reveal(index: 3, child: SectionTitle('Koneksi & kendaraan')),
+            const Reveal(index: 3, child: SectionTitle('Bahasa')),
             Reveal(
               index: 4,
+              child: PillTabs(
+                labels: const ['Bahasa Indonesia', 'English'],
+                index: lang == AppLang.id ? 0 : 1,
+                onChanged: (i) => AppLanguage.instance.set(i == 0 ? AppLang.id : AppLang.en),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Reveal(index: 5, child: SectionTitle('Koneksi & kendaraan')),
+            Reveal(
+              index: 6,
               child: _SettingTile(
                 icon: Icons.bluetooth_searching_rounded,
                 color: AppColors.blue,
@@ -52,7 +65,7 @@ class SettingsPage extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Reveal(
-              index: 5,
+              index: 7,
               child: _SettingTile(
                 icon: Icons.directions_car_filled_rounded,
                 color: AppColors.cyan,
@@ -62,9 +75,9 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Reveal(index: 6, child: SectionTitle('Auto-mulai trip')),
+            const Reveal(index: 8, child: SectionTitle('Auto-mulai trip')),
             Reveal(
-              index: 7,
+              index: 9,
               child: GlassCard(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(

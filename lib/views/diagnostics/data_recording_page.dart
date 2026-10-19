@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
@@ -9,6 +10,7 @@ import '../../core/motion/motion.dart';
 import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
+import '../../core/i18n/translations.dart';
 
 class DataRecordingPage extends ConsumerStatefulWidget {
   const DataRecordingPage({super.key});
@@ -156,7 +158,7 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
     try {
       final recorder = ref.read(dataRecordingProvider);
       final path = await recorder.exportToFile(_lastSession!);
-      await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: 'Rekaman OBD RushSense AI'));
+      await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: tr('Rekaman OBD RushSense AI')));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal export: $e')));

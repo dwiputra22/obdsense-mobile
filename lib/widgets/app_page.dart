@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../core/i18n/tr_text.dart';
 
 import '../core/motion/motion.dart';
 import '../core/theme/app_colors.dart';

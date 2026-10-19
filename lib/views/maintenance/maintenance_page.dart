@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/motion/motion.dart';
 import '../../core/theme/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../models/maintenance_record.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
+import '../../core/i18n/translations.dart';
 
 class MaintenancePage extends ConsumerStatefulWidget {
   const MaintenancePage({super.key});
@@ -264,7 +266,7 @@ class _AddMaintenanceDialogState extends State<_AddMaintenanceDialog> {
         keyboardType: keyboard,
         maxLines: maxLines,
         decoration: InputDecoration(
-          labelText: label,
+          labelText: tr(label),
           prefixIcon: Icon(icon, size: 20),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
         ),
@@ -300,7 +302,7 @@ class _AddMaintenanceDialogState extends State<_AddMaintenanceDialog> {
           _field(_notes, 'Catatan / part yang diganti', Icons.notes_rounded, maxLines: 3),
           DropdownButtonFormField<String>(
             initialValue: _category,
-            decoration: const InputDecoration(labelText: 'Kategori'),
+            decoration: InputDecoration(labelText: tr('Kategori')),
             items: const [
               'Servis Berkala', 'Oli & Filter', 'Rem', 'Ban', 'Kelistrikan',
               'Mesin', 'AC', 'Suspensi', 'Perbaikan', 'Lainnya',
@@ -310,7 +312,7 @@ class _AddMaintenanceDialogState extends State<_AddMaintenanceDialog> {
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _status,
-            decoration: const InputDecoration(labelText: 'Status'),
+            decoration: InputDecoration(labelText: tr('Status')),
             items: const ['Selesai', 'Terjadwal', 'Ditunda']
                 .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
             onChanged: (v) => setState(() => _status = v ?? _status),

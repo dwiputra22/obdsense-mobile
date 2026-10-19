@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../../core/i18n/tr_text.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -15,6 +16,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/auto_trip_settings_provider.dart';
+import '../../core/i18n/translations.dart';
 
 class ObdConnectionPage extends ConsumerStatefulWidget {
   const ObdConnectionPage({super.key});
@@ -394,8 +396,8 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
           children: [
             TextField(
               controller: wifiHostController,
-              decoration: const InputDecoration(
-                labelText: 'Host Wi-Fi OBD',
+              decoration: InputDecoration(
+                labelText: tr('Host Wi-Fi OBD'),
                 prefixIcon: Icon(Icons.wifi_rounded),
                 contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
               ),
@@ -404,8 +406,8 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
             TextField(
               controller: wifiPortController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Port',
+              decoration: InputDecoration(
+                labelText: tr('Port'),
                 prefixIcon: Icon(Icons.settings_ethernet_rounded),
                 contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
               ),
