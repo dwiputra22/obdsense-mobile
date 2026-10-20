@@ -59,7 +59,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final insights = ref.watch(aiInsightsProvider);
     final vehicle = ref.watch(vehicleProfileProvider);
     final anomalies = ref.watch(currentAnomaliesProvider);
-    final obdConnected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
+    final obdConnected = ref.watch(obdConnectedProvider);
+    final live = obdConnected && data.hasData;
     final palette = context.palette;
 
     final topPad = MediaQuery.paddingOf(context).top;
@@ -172,7 +173,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             Reveal(
                               index: 2,
                               child: Text(
-                                'Mesin ${data.coolantTempC.toStringAsFixed(0)}°C · ${data.rpm.toStringAsFixed(0)} rpm',
+                                live
+                                    ? 'Mesin ${data.coolantTempC.toStringAsFixed(0)}°C · ${data.rpm.toStringAsFixed(0)} rpm'
+                                    : (obdConnected ? 'Menunggu data kendaraan…' : 'OBD belum terhubung'),
                                 style: TextStyle(color: ink.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600),
                               ),
                             ),
@@ -280,20 +283,20 @@ padding: EdgeInsets.zero,
                           index: 3,
                           child: MetricTile(
                             icon: Icons.thermostat_rounded,
-                            numberValue: data.coolantTempC,
+                            numberValue: live ? data.coolantTempC : null,
                             label: 'Suhu mesin',
-                            value: data.coolantTempC.toStringAsFixed(0),
+                            value: live ? data.coolantTempC.toStringAsFixed(0) : '—',
                             unit: '°C',
-                            color: data.coolantTempC >= 100 ? AppColors.red : AppColors.cyan,
+                            color: live && data.coolantTempC >= 100 ? AppColors.red : AppColors.cyan,
                           ),
                         ),
                         Reveal(
                           index: 4,
                           child: MetricTile(
                             icon: Icons.av_timer_rounded,
-                            numberValue: data.rpm,
+                            numberValue: live ? data.rpm : null,
                             label: 'RPM',
-                            value: data.rpm.toStringAsFixed(0),
+                            value: live ? data.rpm.toStringAsFixed(0) : '—',
                             unit: 'rpm',
                             color: AppColors.blue,
                           ),
@@ -302,9 +305,9 @@ padding: EdgeInsets.zero,
                           index: 5,
                           child: MetricTile(
                             icon: Icons.speed_rounded,
-                            numberValue: data.speed,
+                            numberValue: live ? data.speed : null,
                             label: 'Kecepatan',
-                            value: data.speed.toStringAsFixed(0),
+                            value: live ? data.speed.toStringAsFixed(0) : '—',
                             unit: 'km/j',
                             color: AppColors.green,
                           ),
@@ -313,12 +316,12 @@ padding: EdgeInsets.zero,
                           index: 6,
                           child: MetricTile(
                             icon: Icons.battery_charging_full_rounded,
-                            numberValue: data.batteryVoltage,
+                            numberValue: live ? data.batteryVoltage : null,
                             decimals: 1,
                             label: 'Voltase aki',
-                            value: data.batteryVoltage.toStringAsFixed(1),
+                            value: live ? data.batteryVoltage.toStringAsFixed(1) : '—',
                             unit: 'V',
-                            color: data.batteryVoltage < 12.3 ? AppColors.orange : AppColors.purple,
+                            color: live && data.batteryVoltage < 12.3 ? AppColors.orange : AppColors.purple,
                           ),
                         ),
                       ],

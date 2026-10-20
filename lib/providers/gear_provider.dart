@@ -6,9 +6,9 @@ import 'app_providers.dart';
 final gearEstimatorProvider = Provider<GearEstimator>((ref) {
   final estimator = GearEstimator(
     readInput: () {
-      final connected = ref.read(obdConnectionManagerProvider)?.isConnected == true;
+      final connected = ref.read(obdConnectedProvider);
       final d = ref.read(telemetryProvider);
-      return GearInput(rpm: d.rpm, speed: d.speed, connected: connected);
+      return GearInput(rpm: d.rpm, speed: d.speed, connected: connected && d.hasData);
     },
   );
   ref.onDispose(estimator.dispose);

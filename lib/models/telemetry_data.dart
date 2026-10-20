@@ -8,7 +8,8 @@ class TelemetryData {
   final double intakeTempC;
   final DateTime timestamp;
   final double fuelRateLph;
-  final double fuelLevelPercent;
+  final double? fuelLevelPercent;
+  final bool hasData;
 
   const TelemetryData({
     required this.rpm,
@@ -20,7 +21,8 @@ class TelemetryData {
     required this.intakeTempC,
     required this.timestamp,
     this.fuelRateLph = 0,
-    this.fuelLevelPercent = 0,
+    this.fuelLevelPercent,
+    this.hasData = true,
   });
 
   factory TelemetryData.empty() {
@@ -34,7 +36,8 @@ class TelemetryData {
       intakeTempC: 0,
       timestamp: DateTime.now(),
       fuelRateLph: 0,
-      fuelLevelPercent: 0,
+      fuelLevelPercent: null,
+      hasData: false,
     );
   }
 }

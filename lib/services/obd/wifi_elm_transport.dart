@@ -9,6 +9,7 @@ class WifiElmTransport implements IObdTransport {
 
   Socket? _socket;
   final StreamController<String> _responseController = StreamController.broadcast();
+  final StreamController<bool> _connectionController = StreamController.broadcast();
 
   WifiElmTransport({
     required this.host,
@@ -19,41 +20,56 @@ class WifiElmTransport implements IObdTransport {
   Stream<String> get responses => _responseController.stream;
 
   @override
+  Stream<bool> get connectionChanges => _connectionController.stream;
+
+  @override
   bool get isConnected => _socket != null;
 
   @override
+  bool get supportsAutoReconnect => true;
+
+  void _markClosed(Socket socket) {
+    if (!identical(_socket, socket)) return;
+    _socket = null;
+    if (!_connectionController.isClosed) _connectionController.add(false);
+  }
+
+  @override
   Future<void> connect() async {
-    _socket = await Socket.connect(host, port, timeout: const Duration(seconds: 8));
-    _socket!.listen(
-          (data) {
+    final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 8));
+    _socket = socket;
+    socket.listen(
+      (data) {
         final text = utf8.decode(data, allowMalformed: true);
         _responseController.add(text);
       },
-      onDone: () {
-        _socket = null;
-      },
-      onError: (_) {
-        _socket = null;
-      },
+      onDone: () => _markClosed(socket),
+      onError: (_) => _markClosed(socket),
+      cancelOnError: true,
     );
   }
 
   @override
   Future<void> disconnect() async {
-    await _socket?.close();
+    final socket = _socket;
     _socket = null;
+    try {
+      socket?.destroy();
+    } catch (_) {}
   }
 
   @override
   Future<void> send(String command) async {
-    if (_socket == null) {
+    final socket = _socket;
+    if (socket == null) {
       throw Exception('OBD Wi-Fi belum terhubung');
     }
-    _socket!.write('$command\r');
-    await _socket!.flush();
+    socket.write('$command\r');
+    await socket.flush();
   }
 
   void dispose() {
     _responseController.close();
+    _connectionController.close();
   }
 }

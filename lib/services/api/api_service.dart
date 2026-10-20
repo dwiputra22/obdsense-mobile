@@ -63,7 +63,7 @@ class ApiService {
       'end_address': trip.endAddress,
       'route': trip.route.map((p) => {'lat': p.lat, 'lng': p.lng}).toList(),
       'fuel_used_liters': trip.fuelUsedLiters,
-      'avg_fuel_consumption_l100km': trip.avgFuelConsumptionL100km,
+      'avg_km_per_liter': trip.avgKmPerLiter,
       'eco_score': trip.ecoScore,
       'health_events': trip.healthEvents
           .map((e) => {'lat': e.lat, 'lng': e.lng, 'sensor_label': e.sensorLabel, 'severity': e.severity})

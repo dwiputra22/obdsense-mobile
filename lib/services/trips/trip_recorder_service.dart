@@ -50,13 +50,19 @@ class TripRecorderService {
         _buffer.map((e) => e.coolantTempC).reduce((a, b) => a > b ? a : b);
 
     final route = List<GeoPoint>.from(_route);
-    final distanceKm = _calculateDistanceKm(route);
 
-    final fuelRates = _buffer.map((e) => e.fuelRateLph).toList();
-    final fuelUsedLiters =
-        FuelEfficiencyCalculator.integrateFuelUsed(fuelRates, const Duration(seconds: 2));
-    final avgFuelConsumption =
-        distanceKm > 0 ? (fuelUsedLiters / distanceKm) * 100 : 0.0;
+    // Jarak: pengukuran jarak menggunakan OBD / GPS.
+    final gpsDistanceKm = _calculateDistanceKm(route);
+    final obdDistanceKm = FuelEfficiencyCalculator.integrateDistanceKm(_buffer);
+    final distanceKm = (gpsDistanceKm <= 0 || gpsDistanceKm < obdDistanceKm * 0.7)
+        ? obdDistanceKm
+        : gpsDistanceKm;
+
+    // BBM: integral laju BBM terhadap waktu nyata tiap sampel.
+    final fuelUsedLiters = FuelEfficiencyCalculator.integrateFuelUsed(_buffer);
+
+    // Konsumsi dalam km/L.
+    final avgKmPerLiter = FuelEfficiencyCalculator.kmPerLiter(distanceKm, fuelUsedLiters) ?? 0.0;
     final ecoScore = EcoDrivingScorer.score(_buffer);
 
     final healthEvents = (vin != null && baselineService != null)
@@ -82,7 +88,7 @@ class TripRecorderService {
       endAddress: endAddress,
       route: route,
       fuelUsedLiters: fuelUsedLiters,
-      avgFuelConsumptionL100km: avgFuelConsumption,
+      avgKmPerLiter: avgKmPerLiter,
       ecoScore: ecoScore,
       healthEvents: healthEvents,
     );

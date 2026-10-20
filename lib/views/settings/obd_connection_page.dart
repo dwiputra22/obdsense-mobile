@@ -15,7 +15,8 @@ import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
 import '../../providers/app_providers.dart';
-import '../../providers/auto_trip_settings_provider.dart';
+import '../../providers/obd_session.dart';
+import '../../services/obd/obd_connection_manager.dart';
 import '../../core/i18n/translations.dart';
 
 class ObdConnectionPage extends ConsumerStatefulWidget {
@@ -30,6 +31,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   List<ScanResult> bluetoothResults = [];
   List<String> usbPorts = [];
   bool loading = false;
+  bool _disconnecting = false;
   String status = 'Pilih metode koneksi, lalu lakukan scan.';
   StreamSubscription<List<ScanResult>>? _scanSub;
 
@@ -204,30 +206,23 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
   }
 
   Future<void> _connectTransport(IObdTransport transport) async {
-    ref.read(obdTransportProvider.notifier).state = transport;
-
-    final manager = ref.read(obdConnectionManagerProvider);
-    if (manager == null) throw Exception('Connection manager tidak tersedia');
-    await manager.connect();
-
-    final obd = ref.read(obdProvider);
-    if (obd != null) {
-      manager.startAutoReconnect();
-      await obd.initializeAdapter();
-      obd.startPolling();
-    }
-
-    await _maybeAutoStartTrip();
+    await ref.read(obdSessionProvider).connect(transport);
   }
 
-  Future<void> _maybeAutoStartTrip() async {
-    final settings = ref.read(autoTripSettingsProvider);
-    if (!settings.autoStartOnObdConnect) return;
-
-    final recorder = ref.read(tripRecorderProvider);
-    if (recorder.isRecording) return;
-
-    await ref.read(tripControllerProvider.notifier).startTrip();
+  Future<void> _disconnect() async {
+    if (_disconnecting) return;
+    setState(() {
+      _disconnecting = true;
+      status = 'Memutuskan koneksi…';
+    });
+    try {
+      await ref.read(obdSessionProvider).disconnect();
+      if (mounted) setState(() => status = 'Koneksi diputus. Pilih adapter untuk menghubungkan lagi.');
+    } catch (_) {
+      if (mounted) setState(() => status = 'Koneksi diputus.');
+    } finally {
+      if (mounted) setState(() => _disconnecting = false);
+    }
   }
 
   static const _types = [ObdTransportType.bluetooth, ObdTransportType.wifi, ObdTransportType.usb];
@@ -241,13 +236,30 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final connected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
+    final link = ref.watch(obdLinkStatusProvider);
+    final connected = link == ObdLinkStatus.connected;
+    final reconnecting = link == ObdLinkStatus.reconnecting;
+    final connecting = link == ObdLinkStatus.connecting;
     final palette = context.palette;
     final typeIndex = _types.indexOf(selectedType);
+    final titleText = connected
+        ? 'OBD terhubung'
+        : reconnecting
+            ? 'Koneksi terputus'
+            : connecting
+                ? 'Menghubungkan…'
+                : 'Belum terhubung';
+    final detailText = reconnecting
+        ? 'Adapter di luar jangkauan atau mati. Mencoba menyambung ulang otomatis…'
+        : status;
 
     return AppPage(
       title: 'Koneksi OBD-II',
-      subtitle: connected ? 'Adapter tersambung' : 'Hubungkan adapter ELM327',
+      subtitle: connected
+          ? 'Adapter tersambung'
+          : reconnecting
+              ? 'Menyambung ulang…'
+              : 'Hubungkan adapter ELM327',
       children: [
         Reveal(
           index: 1,
@@ -262,16 +274,19 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
                   children: [
                     if (connected)
                       const PulseDot(color: AppColors.green)
+                    else if (reconnecting)
+                      const IconBubble(icon: Icons.sync_problem_rounded, color: AppColors.red, size: 40)
                     else
                       const IconBubble(icon: Icons.link_off_rounded, color: AppColors.orange, size: 40),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        connected ? 'OBD terhubung' : 'Belum terhubung',
+                        titleText,
                         style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
                       ),
                     ),
-                    if (loading) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.4)),
+                    if (loading || connecting || reconnecting)
+                      const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.4)),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -282,7 +297,7 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
                   child: SizedBox(
                     width: double.infinity,
                     child: Text(
-                      status,
+                      detailText,
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.35,
@@ -291,6 +306,25 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
                     ),
                   ),
                 ),
+                if (connected || reconnecting) ...[
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: connected ? palette.onPrimary : AppColors.red,
+                        side: BorderSide(color: connected ? palette.onPrimary.withValues(alpha: 0.5) : AppColors.red),
+                      ),
+                      onPressed: _disconnecting ? null : _disconnect,
+                      icon: _disconnecting
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.2))
+                          : const Icon(Icons.link_off_rounded),
+                      label: Text(_disconnecting
+                          ? 'Memutuskan…'
+                          : (connected ? 'Putuskan koneksi' : 'Batalkan & putuskan')),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

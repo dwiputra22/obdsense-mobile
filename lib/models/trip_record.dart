@@ -14,7 +14,7 @@ class TripRecord {
   final String? endAddress;
   final List<GeoPoint> route;
   final double fuelUsedLiters;
-  final double avgFuelConsumptionL100km;
+  final double avgKmPerLiter;
   final int ecoScore;
   final List<HealthEvent> healthEvents;
 
@@ -31,7 +31,7 @@ class TripRecord {
     this.endAddress,
     this.route = const [],
     this.fuelUsedLiters = 0,
-    this.avgFuelConsumptionL100km = 0,
+    this.avgKmPerLiter = 0,
     this.ecoScore = 100,
     this.healthEvents = const [],
   });
@@ -50,7 +50,7 @@ class TripRecord {
       'endAddress': endAddress,
       'route': route.map((p) => p.toJson()).toList(),
       'fuelUsedLiters': fuelUsedLiters,
-      'avgFuelConsumptionL100km': avgFuelConsumptionL100km,
+      'avgKmPerLiter': avgKmPerLiter,
       'ecoScore': ecoScore,
       'healthEvents': healthEvents.map((e) => e.toJson()).toList(),
     };
@@ -74,7 +74,7 @@ class TripRecord {
               .map((e) => GeoPoint.fromJson(Map<dynamic, dynamic>.from(e)))
               .toList(),
       fuelUsedLiters: (json['fuelUsedLiters'] as num?)?.toDouble() ?? 0,
-      avgFuelConsumptionL100km: (json['avgFuelConsumptionL100km'] as num?)?.toDouble() ?? 0,
+      avgKmPerLiter: (json['avgKmPerLiter'] as num?)?.toDouble() ?? 0,
       ecoScore: (json['ecoScore'] as num?)?.toInt() ?? 100,
       healthEvents: json['healthEvents'] == null
           ? const []
@@ -98,7 +98,7 @@ class TripRecord {
       endAddress: endAddress,
       route: route,
       fuelUsedLiters: fuelUsedLiters,
-      avgFuelConsumptionL100km: avgFuelConsumptionL100km,
+      avgKmPerLiter: avgKmPerLiter,
       ecoScore: ecoScore,
       healthEvents: healthEvents,
     );

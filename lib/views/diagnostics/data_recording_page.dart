@@ -28,7 +28,7 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
     final recorder = ref.watch(dataRecordingProvider);
     final recordingActive = ref.watch(dataRecordingActiveProvider);
     final palette = context.palette;
-    final obdConnected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
+    final obdConnected = ref.watch(obdConnectedProvider);
 
     return AppPage(
       title: 'Data Recording',

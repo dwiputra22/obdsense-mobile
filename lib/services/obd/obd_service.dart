@@ -14,14 +14,23 @@ class ObdService {
   final ObdConnectionManager manager;
   final StreamController<TelemetryData> _telemetryController = StreamController.broadcast();
   final StreamController<Map<String, double>> _extraSensorsController =
-  StreamController.broadcast();
-  Timer? _pollTimer;
-  Timer? _extendedPollTimer;
-  Timer? _auxPollTimer;
-  bool _telemetryCycleRunning = false;
-  bool _extendedCycleRunning = false;
-  int _auxIndex = 0;
+      StreamController.broadcast();
+
+  StreamSubscription<ObdLinkStatus>? _statusSub;
+  Timer? _watchdogTimer;
+  bool _polling = false;
+  int _pollGeneration = 0;
+  int _iteration = 0;
+  int _slowIndex = 0;
   int _extendedIndex = 0;
+
+  DateTime _lastValidData = DateTime.now();
+  bool _ecuSilent = false;
+  bool _emittedEmpty = true;
+  bool _needPrime = true;
+  bool _warm = false;
+  bool _rpmOk = false;
+  bool _speedOk = false;
 
   double _rpm = 0;
   double _speed = 0;
@@ -33,9 +42,11 @@ class ObdService {
 
   double? _maf;
   double? _fuelRateDirect;
-  double _fuelLevel = 0;
+  double? _fuelLevel;
   int _fuelRateMissCount = 0;
   bool _fuelRatePidUnsupported = false;
+  bool _mafUnsupported = false;
+  bool _fuelLevelUnsupported = false;
 
   Set<String> supportedPids = {};
   List<PidDefinition> availableExtendedPids = [];
@@ -45,7 +56,23 @@ class ObdService {
 
   Stream<Map<String, double>> get extraSensorsStream => _extraSensorsController.stream;
 
-  ObdService(this.manager);
+  bool get fuelLevelSupported => !_fuelLevelUnsupported;
+
+  ObdService(this.manager) {
+    manager.onReconnected = _handleReconnected;
+    _statusSub = manager.statusStream.listen((status) {
+      if (status != ObdLinkStatus.connected) {
+        _clearValues();
+        _publishEmpty();
+      }
+    });
+  }
+
+  Future<void> _handleReconnected() async {
+    _clearValues();
+    await initializeAdapter();
+    _lastValidData = DateTime.now();
+  }
 
   Future<void> initializeAdapter() async {
     await manager.queue!.send(ObdCommand.reset, timeout: const Duration(seconds: 4));
@@ -88,90 +115,172 @@ class ObdService {
 
     supportedPids = supported;
     availableExtendedPids = PidTable.extended.where((p) => supported.contains(p.pid)).toList();
+
+    if (supported.isNotEmpty) {
+      _fuelLevelUnsupported = !supported.contains('2F');
+      _fuelRatePidUnsupported = !supported.contains('5E');
+      _mafUnsupported = !supported.contains('10');
+    }
   }
 
   void startPolling() {
-    _pollTimer?.cancel();
-    _auxPollTimer?.cancel();
-    _extendedPollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 350), (_) async {
-      if (_telemetryCycleRunning || manager.queue == null || !manager.isConnected) return;
-      _telemetryCycleRunning = true;
-      try {
-        await _readPid(ObdCommand.rpm, '410C', (r) => _rpm = ObdParser.parseRpm(r) ?? _rpm,
-            timeout: const Duration(milliseconds: 900));
-        await _readPid(ObdCommand.speed, '410D', (r) => _speed = ObdParser.parseSpeed(r) ?? _speed,
-            timeout: const Duration(milliseconds: 900));
-        final fuelRate = _fuelRateDirect ?? FuelEfficiencyCalculator.fuelRateFromMaf(_maf) ?? 0;
-        if (!_telemetryController.isClosed) {
-          _telemetryController.add(TelemetryData(
-            rpm: _rpm,
-            speed: _speed,
-            coolantTempC: _coolant,
-            batteryVoltage: _voltage,
-            engineLoad: _load,
-            throttlePosition: _throttle,
-            intakeTempC: _intake,
-            timestamp: DateTime.now(),
-            fuelRateLph: fuelRate,
-            fuelLevelPercent: _fuelLevel,
-          ));
-        }
-      } finally {
-        _telemetryCycleRunning = false;
+    stopPolling();
+    _polling = true;
+    final gen = ++_pollGeneration;
+    _iteration = 0;
+    _needPrime = true;
+    _lastValidData = DateTime.now();
+    _watchdogTimer = Timer.periodic(const Duration(seconds: 1), (_) => _watchdog());
+    unawaited(_pollLoop(gen));
+  }
+
+  bool _alive(int gen) => _polling && gen == _pollGeneration;
+
+  bool _canPoll() => manager.queue != null && manager.isConnected;
+
+  Future<void> _pollLoop(int gen) async {
+    while (_alive(gen)) {
+      if (!_canPoll()) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        continue;
       }
-    });
+      try {
+        await _pollOnce(gen);
+      } catch (_) {
+        // Satu siklus gagal tidak boleh menghentikan loop.
+      }
+      await Future.delayed(const Duration(milliseconds: 30));
+    }
+  }
 
-    _auxPollTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) async {
-      if (_telemetryCycleRunning || manager.queue == null || !manager.isConnected) return;
-      final tasks = <Future<void> Function()>[
-            () => _readPid(ObdCommand.coolantTemp, '4105', (r) => _coolant = ObdParser.parseCoolantTempC(r) ?? _coolant),
-            () => _readPid(ObdCommand.engineLoad, '4104', (r) => _load = ObdParser.parseEngineLoad(r) ?? _load),
-            () => _readPid(ObdCommand.throttlePosition, '4111', (r) => _throttle = ObdParser.parseThrottle(r) ?? _throttle),
-            () => _readPid(ObdCommand.intakeTemp, '410F', (r) => _intake = ObdParser.parseIntakeTempC(r) ?? _intake),
-            () => _readPid(ObdCommand.maf, '4110', (r) => _maf = ObdParser.parseMaf(r) ?? _maf),
-            () => _readPid(ObdCommand.fuelLevel, '412F', (r) => _fuelLevel = ObdParser.parseFuelLevel(r) ?? _fuelLevel),
-        if (!_fuelRatePidUnsupported) () async {
-          await _readPid(ObdCommand.fuelRate, '415E', (r) => _fuelRateDirect = ObdParser.parseFuelRate(r));
-          if (_fuelRateDirect == null) {
-            _fuelRateMissCount++;
-            if (_fuelRateMissCount >= 3) _fuelRatePidUnsupported = true;
-          } else {
-            _fuelRateMissCount = 0;
-          }
-        },
-            () async {
-          try {
-            final response = await manager.queue!.send(ObdCommand.voltage, timeout: const Duration(milliseconds: 900));
-            if (ObdResponseValidator.isValid(response)) _voltage = ObdParser.parseVoltage(response) ?? _voltage;
-          } catch (_) {}
-        },
-      ];
-      if (_auxIndex >= tasks.length) _auxIndex = 0;
-      await tasks[_auxIndex++]();
-    });
+  Future<void> _pollOnce(int gen) async {
+    _iteration++;
 
-    if (availableExtendedPids.isNotEmpty) {
-      _extendedPollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-        if (_extendedCycleRunning || _telemetryCycleRunning || manager.queue == null || !manager.isConnected) return;
-        _extendedCycleRunning = true;
-        try {
-          if (_extendedIndex >= availableExtendedPids.length) _extendedIndex = 0;
-          final pidDef = availableExtendedPids[_extendedIndex++];
-          try {
-            final response = await manager.queue!.send('01${pidDef.pid}', timeout: const Duration(milliseconds: 1100));
-            if (ObdResponseValidator.isValid(response)) {
-              final bytes = _extractDataBytes(response, pidDef.pid, pidDef.expectedBytes);
-              if (bytes != null) _extraSensorReadings[pidDef.pid] = pidDef.decode(bytes);
-            }
-          } catch (_) {
-            // Satu PID gagal tidak boleh menghentikan seluruh siklus.
-          }
-          if (!_extraSensorsController.isClosed) _extraSensorsController.add(Map.unmodifiable(_extraSensorReadings));
-        } finally {
-          _extendedCycleRunning = false;
-        }
+    // 1) Sensor cepat: RPM + kecepatan + sumber laju BBM, tiap siklus.
+    await _readPid(ObdCommand.rpm, '410C', (r) {
+      final v = ObdParser.parseRpm(r);
+      if (v != null) {
+        _rpm = v;
+        _rpmOk = true;
+      }
+    }, timeout: const Duration(milliseconds: 900));
+    if (!_alive(gen) || !_canPoll()) return;
+
+    await _readPid(ObdCommand.speed, '410D', (r) {
+      final v = ObdParser.parseSpeed(r);
+      if (v != null) {
+        _speed = v;
+        _speedOk = true;
+      }
+    }, timeout: const Duration(milliseconds: 900));
+    if (!_alive(gen) || !_canPoll()) return;
+
+    await _readFuelSource();
+    if (!_alive(gen) || !_canPoll()) return;
+
+    // 2) Sensor lambat: satu per siklus, bergiliran.
+    if (_needPrime && _rpmOk) {
+      await _primeCore(gen);
+    } else if (availableExtendedPids.isNotEmpty && _iteration % 4 == 3) {
+      await _readNextExtended();
+    } else {
+      await _readNextCore();
+    }
+    if (!_alive(gen) || !_canPoll()) return;
+
+    _publish();
+  }
+
+  /// Laju BBM: PID 015E langsung bila didukung, kalau tidak turunan dari MAF.
+  Future<void> _readFuelSource() async {
+    if (!_fuelRatePidUnsupported) {
+      final ok = await _readPid(ObdCommand.fuelRate, '415E', (r) {
+        _fuelRateDirect = ObdParser.parseFuelRate(r);
       });
+      if (!ok || _fuelRateDirect == null) {
+        _fuelRateMissCount++;
+        if (_fuelRateMissCount >= 3) _fuelRatePidUnsupported = true;
+      } else {
+        _fuelRateMissCount = 0;
+      }
+    }
+    if (_fuelRatePidUnsupported && !_mafUnsupported) {
+      await _readPid(ObdCommand.maf, '4110', (r) => _maf = ObdParser.parseMaf(r) ?? _maf);
+    }
+  }
+
+  late final List<Future<void> Function()> _coreTasks = [
+    _readCoolant,
+    _readLoad,
+    _readThrottle,
+    _readIntake,
+    _readFuelLevel,
+    _readVoltage,
+  ];
+
+  Future<void> _readCoolant() => _readPid(ObdCommand.coolantTemp, '4105', (r) {
+        final v = ObdParser.parseCoolantTempC(r);
+        if (v != null) _coolant = v;
+      });
+
+  Future<void> _readLoad() =>
+      _readPid(ObdCommand.engineLoad, '4104', (r) => _load = ObdParser.parseEngineLoad(r) ?? _load);
+
+  Future<void> _readThrottle() => _readPid(
+      ObdCommand.throttlePosition, '4111', (r) => _throttle = ObdParser.parseThrottle(r) ?? _throttle);
+
+  Future<void> _readIntake() =>
+      _readPid(ObdCommand.intakeTemp, '410F', (r) => _intake = ObdParser.parseIntakeTempC(r) ?? _intake);
+
+  Future<void> _readFuelLevel() async {
+    if (_fuelLevelUnsupported) return;
+    await _readPid(ObdCommand.fuelLevel, '412F', (r) {
+      final v = ObdParser.parseFuelLevel(r);
+      if (v == null || v < 0 || v > 100) return;
+      final prev = _fuelLevel;
+      _fuelLevel = prev == null ? v : (prev * 0.7 + v * 0.3);
+    });
+  }
+
+  Future<void> _readVoltage() async {
+    try {
+      final response = await manager.queue!.send(ObdCommand.voltage, timeout: const Duration(milliseconds: 900));
+        if (ObdResponseValidator.isValid(response)) {
+        _voltage = ObdParser.parseVoltage(response) ?? _voltage;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _readNextCore() async {
+    if (_slowIndex >= _coreTasks.length) _slowIndex = 0;
+    await _coreTasks[_slowIndex++]();
+  }
+
+  Future<void> _primeCore(int gen) async {
+    for (final task in _coreTasks) {
+      if (!_alive(gen) || !_canPoll()) return;
+      await task();
+    }
+    _slowIndex = 0;
+    _warm = true;
+    _needPrime = false;
+  }
+
+  Future<void> _readNextExtended() async {
+    if (availableExtendedPids.isEmpty) return;
+    if (_extendedIndex >= availableExtendedPids.length) _extendedIndex = 0;
+    final pidDef = availableExtendedPids[_extendedIndex++];
+    try {
+      final response = await manager.queue!.send('01${pidDef.pid}', timeout: const Duration(milliseconds: 1100));
+        if (ObdResponseValidator.isValid(response)) {
+        final bytes = _extractDataBytes(response, pidDef.pid, pidDef.expectedBytes);
+        if (bytes != null) _extraSensorReadings[pidDef.pid] = pidDef.decode(bytes);
+      }
+    } catch (_) {
+      // Satu PID gagal tidak boleh menghentikan seluruh siklus.
+    }
+    if (!_extraSensorsController.isClosed) {
+      _extraSensorsController.add(Map.unmodifiable(_extraSensorReadings));
     }
   }
 
@@ -192,18 +301,98 @@ class ObdService {
     return bytes;
   }
 
-  Future<void> _readPid(
-      String command,
-      String expectedHeader,
-      void Function(String raw) onSuccess, {
-        Duration timeout = const Duration(milliseconds: 1100),
-      }) async {
+  Future<bool> _readPid(
+    String command,
+    String expectedHeader,
+    void Function(String raw) onSuccess, {
+    Duration timeout = const Duration(milliseconds: 1100),
+  }) async {
     try {
       final response = await manager.queue!.send(command, timeout: timeout);
-      if (!ObdResponseValidator.isValid(response)) return;
-      if (!ObdResponseValidator.containsPidResponse(response, expectedHeader)) return;
+        if (!ObdResponseValidator.isValid(response)) return false;
+      if (!ObdResponseValidator.containsPidResponse(response, expectedHeader)) return false;
       onSuccess(response);
-    } catch (_) {}
+      _lastValidData = DateTime.now();
+      if (_ecuSilent) {
+        _ecuSilent = false;
+        _needPrime = true;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _watchdog() {
+    if (!_polling) return;
+    if (manager.status != ObdLinkStatus.connected) return;
+
+    final now = DateTime.now();
+
+    final lastReply = manager.lastReplyAt ?? now;
+    if (now.difference(lastReply) > const Duration(seconds: 8)) {
+      manager.reportLinkLost();
+      return;
+    }
+
+    if (!_ecuSilent && now.difference(_lastValidData) > const Duration(seconds: 10)) {
+      _ecuSilent = true;
+      _clearValues();
+      _publishEmpty();
+    }
+  }
+
+  void _clearValues() {
+    _rpm = 0;
+    _speed = 0;
+    _coolant = 0;
+    _voltage = 0;
+    _load = 0;
+    _throttle = 0;
+    _intake = 0;
+    _maf = null;
+    _fuelRateDirect = null;
+    _fuelLevel = null;
+    _fuelRateMissCount = 0;
+    _rpmOk = false;
+    _speedOk = false;
+    _warm = false;
+    _needPrime = true;
+    _extraSensorReadings.clear();
+    if (!_extraSensorsController.isClosed) {
+      _extraSensorsController.add(const <String, double>{});
+    }
+  }
+
+  void _publishEmpty() {
+    if (_telemetryController.isClosed || _emittedEmpty) return;
+    _emittedEmpty = true;
+    _telemetryController.add(TelemetryData.empty());
+  }
+
+  void _publish() {
+    if (_telemetryController.isClosed) return;
+    final ready = _warm && _rpmOk && _speedOk && !_ecuSilent;
+    if (!ready) {
+      _publishEmpty();
+      return;
+    }
+    _emittedEmpty = false;
+
+    final fuelRate = _fuelRateDirect ?? FuelEfficiencyCalculator.fuelRateFromMaf(_maf) ?? 0;
+    _telemetryController.add(TelemetryData(
+      rpm: _rpm,
+      speed: _speed,
+      coolantTempC: _coolant,
+      batteryVoltage: _voltage,
+      engineLoad: _load,
+      throttlePosition: _throttle,
+      intakeTempC: _intake,
+      timestamp: DateTime.now(),
+      fuelRateLph: fuelRate,
+      fuelLevelPercent: _fuelLevel,
+      hasData: true,
+    ));
   }
 
   Future<List<DtcCode>> readDtc() async {
@@ -217,15 +406,18 @@ class ObdService {
   }
 
   void stopPolling() {
-    _pollTimer?.cancel();
-    _auxPollTimer?.cancel();
-    _extendedPollTimer?.cancel();
-    _telemetryCycleRunning = false;
-    _extendedCycleRunning = false;
+    _polling = false;
+    _pollGeneration++;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
   }
 
   void dispose() {
     stopPolling();
+    _statusSub?.cancel();
+    if (manager.onReconnected == _handleReconnected) {
+      manager.onReconnected = null;
+    }
     _telemetryController.close();
     _extraSensorsController.close();
   }

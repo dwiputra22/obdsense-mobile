@@ -24,8 +24,10 @@ import 'views/settings/vehicle_profile_page.dart';
 import 'models/trip_record.dart';
 import 'views/splash/splash_page.dart';
 import 'core/i18n/app_language.dart';
+import 'providers/app_providers.dart';
 import 'providers/gear_provider.dart';
 import 'providers/live_history_provider.dart';
+import 'providers/navigation_provider.dart';
 import 'providers/theme_provider.dart';
 
 // Import service untuk inisialisasi di latar belakang splash
@@ -80,7 +82,9 @@ class _RushSenseAppState extends State<RushSenseApp> {
       splashDone: _splashDone,
       progress: _progress,
       onSplashFinished: () {
-        if (mounted) setState(() => _splashDone = true);
+        if (!mounted) return;
+        setState(() => _splashDone = true);
+        ProviderScope.containerOf(context, listen: false).read(splashDoneProvider.notifier).state = true;
       },
     );
   }
@@ -185,6 +189,7 @@ class _MainAppContent extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     ref.read(liveHistoryProvider);
     ref.read(gearEstimatorProvider);
+    ref.read(telemetryProvider);
 
     return MaterialApp.router(
       title: 'RushSense AI',

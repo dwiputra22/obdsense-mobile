@@ -32,7 +32,7 @@ class _TripsPageState extends ConsumerState<TripsPage> {
     final trips = ref.watch(tripControllerProvider);
     final tripController = ref.read(tripControllerProvider.notifier);
     final tripActive = ref.watch(tripRecordingActiveProvider);
-    final obdConnected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
+    final obdConnected = ref.watch(obdConnectedProvider);
     final palette = context.palette;
 
     final totalKm = trips.fold<double>(0, (sum, t) => sum + t.distanceKm);
@@ -214,9 +214,9 @@ class _TripsPageState extends ConsumerState<TripsPage> {
                             children: [
                               StatusChip(text: 'Eco ${trip.ecoScore} · ${EcoDrivingScorer.label(trip.ecoScore)}', color: ecoColor, icon: Icons.eco_rounded),
                               const Spacer(),
-                              if (trip.avgFuelConsumptionL100km > 0)
+                              if (trip.avgKmPerLiter > 0)
                                 Text(
-                                  '${trip.avgFuelConsumptionL100km.toStringAsFixed(1)} L/100km',
+                                  '${trip.avgKmPerLiter.toStringAsFixed(1)} km/L',
                                   style: TextStyle(color: palette.muted, fontSize: 12, fontWeight: FontWeight.w600),
                                 ),
                             ],

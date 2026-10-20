@@ -58,7 +58,7 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
     super.dispose();
   }
 
-  bool get _obdConnected => ref.read(obdConnectionManagerProvider)?.isConnected == true;
+  bool get _obdConnected => ref.watch(obdConnectedProvider);
 
   Future<void> _save() async {
     final updated = VehicleProfile(

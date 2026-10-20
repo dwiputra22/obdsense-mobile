@@ -63,9 +63,8 @@ class _TripComparisonPageState extends ConsumerState<TripComparisonPage> {
                       _row('Kec. rata-rata', '${_a!.avgSpeed.toStringAsFixed(0)} km/j', '${_b!.avgSpeed.toStringAsFixed(0)} km/j'),
                       _row('Kec. maksimum', '${_a!.maxSpeed.toStringAsFixed(0)} km/j', '${_b!.maxSpeed.toStringAsFixed(0)} km/j'),
                       _row('Suhu maks', '${_a!.maxCoolantTempC.toStringAsFixed(0)}°C', '${_b!.maxCoolantTempC.toStringAsFixed(0)}°C'),
-                      _row('Konsumsi BBM', '${_a!.avgFuelConsumptionL100km.toStringAsFixed(1)} L/100km',
-                          '${_b!.avgFuelConsumptionL100km.toStringAsFixed(1)} L/100km',
-                          betterIsLower: true),
+                      _row('Konsumsi BBM', _kmPerLiterText(_a!), _kmPerLiterText(_b!),
+                          betterIsLower: false),
                       _row('Eco Score', '${_a!.ecoScore}', '${_b!.ecoScore}', betterIsLower: false),
                       _row('Anomali', '${_a!.healthEvents.length}', '${_b!.healthEvents.length}', betterIsLower: true),
                     ],
@@ -97,6 +96,9 @@ class _TripComparisonPageState extends ConsumerState<TripComparisonPage> {
       },
     );
   }
+
+  String _kmPerLiterText(TripRecord t) =>
+      t.avgKmPerLiter > 0 ? '${t.avgKmPerLiter.toStringAsFixed(1)} km/L' : '—';
 
   Widget _row(String label, String a, String b, {bool? betterIsLower}) {
     Color colorFor(String raw, String other) {

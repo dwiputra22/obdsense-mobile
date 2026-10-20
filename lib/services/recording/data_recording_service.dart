@@ -54,7 +54,7 @@ class DataRecordingService {
         s.throttlePosition,
         s.intakeTempC,
         s.fuelRateLph,
-        s.fuelLevelPercent,
+        s.fuelLevelPercent ?? '',
       ].join(','));
     }
     return buffer.toString();

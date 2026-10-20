@@ -9,6 +9,7 @@ class UsbElmTransport implements IObdTransport {
   final String portName;
   final FlSerial _serial = FlSerial();
   final StreamController<String> _responseController = StreamController.broadcast();
+  final StreamController<bool> _connectionController = StreamController.broadcast();
   StreamSubscription? _dataSub;
   bool _isOpen = false;
 
@@ -22,7 +23,13 @@ class UsbElmTransport implements IObdTransport {
   Stream<String> get responses => _responseController.stream;
 
   @override
+  Stream<bool> get connectionChanges => _connectionController.stream;
+
+  @override
   bool get isConnected => _isOpen;
+
+  @override
+  bool get supportsAutoReconnect => false;
 
   @override
   Future<void> connect() async {
@@ -36,16 +43,24 @@ class UsbElmTransport implements IObdTransport {
 
     await _serial.open(portName, config);
 
-    _dataSub = _serial.events.listen((event) {
-      if (event.type == SerialEventType.data) {
-        final Uint8List rawData = event.data as Uint8List;
-        if (rawData.isNotEmpty) {
-          _responseController.add(
-            utf8.decode(rawData, allowMalformed: true),
-          );
+    _dataSub = _serial.events.listen(
+      (event) {
+        if (event.type == SerialEventType.data) {
+          final Uint8List rawData = event.data as Uint8List;
+          if (rawData.isNotEmpty) {
+            _responseController.add(
+              utf8.decode(rawData, allowMalformed: true),
+            );
+          }
         }
-      }
-    });
+      },
+      onDone: () {
+        if (_isOpen) {
+          _isOpen = false;
+          if (!_connectionController.isClosed) _connectionController.add(false);
+        }
+      },
+    );
 
     _isOpen = true;
   }

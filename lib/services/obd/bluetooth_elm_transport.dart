@@ -10,9 +10,12 @@ class BluetoothElmTransport implements IObdTransport {
   BluetoothCharacteristic? _notifyChar;
 
   final StreamController<String> _responseController =
-  StreamController<String>.broadcast();
+      StreamController<String>.broadcast();
+  final StreamController<bool> _connectionController =
+      StreamController<bool>.broadcast();
 
   StreamSubscription<List<int>>? _notifySubscription;
+  StreamSubscription<BluetoothConnectionState>? _stateSubscription;
 
   bool _connected = false;
 
@@ -22,10 +25,19 @@ class BluetoothElmTransport implements IObdTransport {
   Stream<String> get responses => _responseController.stream;
 
   @override
+  Stream<bool> get connectionChanges => _connectionController.stream;
+
+  @override
   bool get isConnected => _connected;
 
   @override
+  bool get supportsAutoReconnect => true;
+
+  @override
   Future<void> connect() async {
+    await _stateSubscription?.cancel();
+    _stateSubscription = null;
+
     await device.connect(
       license: License.nonprofit,
       timeout: const Duration(seconds: 10),
@@ -40,13 +52,13 @@ class BluetoothElmTransport implements IObdTransport {
     for (final service in services) {
       for (final characteristic in service.characteristics) {
         if ((characteristic.properties.write ||
-            characteristic.properties.writeWithoutResponse) &&
+                characteristic.properties.writeWithoutResponse) &&
             _writeChar == null) {
           _writeChar = characteristic;
         }
 
         if ((characteristic.properties.notify ||
-            characteristic.properties.indicate) &&
+                characteristic.properties.indicate) &&
             _notifyChar == null) {
           _notifyChar = characteristic;
         }
@@ -63,10 +75,10 @@ class BluetoothElmTransport implements IObdTransport {
     if (_notifyChar != null) {
       await _notifyChar!.setNotifyValue(true);
 
-      _notifySubscription?.cancel();
+      await _notifySubscription?.cancel();
 
       _notifySubscription = _notifyChar!.lastValueStream.listen(
-            (value) {
+        (value) {
           final text = utf8.decode(
             value,
             allowMalformed: true,
@@ -84,10 +96,19 @@ class BluetoothElmTransport implements IObdTransport {
     }
 
     _connected = true;
+
+    _stateSubscription = device.connectionState.listen((state) {
+      if (state == BluetoothConnectionState.disconnected && _connected) {
+        _connected = false;
+        if (!_connectionController.isClosed) _connectionController.add(false);
+      }
+    });
   }
 
   @override
   Future<void> disconnect() async {
+    await _stateSubscription?.cancel();
+    _stateSubscription = null;
     await _notifySubscription?.cancel();
     _notifySubscription = null;
 
@@ -117,7 +138,9 @@ class BluetoothElmTransport implements IObdTransport {
   }
 
   void dispose() {
+    _stateSubscription?.cancel();
     _notifySubscription?.cancel();
     _responseController.close();
+    _connectionController.close();
   }
 }

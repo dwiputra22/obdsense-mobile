@@ -28,11 +28,21 @@ class LiveHistory extends ChangeNotifier {
   final Ref _ref;
   Timer? _timer;
   final List<LiveSample> samples = [];
+  bool _wasLive = false;
 
   void _tick() {
-    final connected = _ref.read(obdConnectionManagerProvider)?.isConnected == true;
-    if (!connected) return;
+    final connected = _ref.read(obdConnectedProvider);
     final d = _ref.read(telemetryProvider);
+    final live = connected && d.hasData;
+    if (!live) {
+      if (_wasLive || samples.isNotEmpty) {
+        _wasLive = false;
+        samples.clear();
+        notifyListeners();
+      }
+      return;
+    }
+    _wasLive = true;
     final now = DateTime.now();
     samples.add(LiveSample(now, d.rpm, d.speed, d.coolantTempC, d.batteryVoltage));
 

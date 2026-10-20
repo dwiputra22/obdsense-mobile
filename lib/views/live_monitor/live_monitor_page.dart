@@ -50,19 +50,21 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
     final data = ref.watch(telemetryProvider);
     final template = ref.watch(gaugeTemplateProvider);
     final history = ref.watch(liveHistoryProvider);
-    final obdConnected = ref.watch(obdConnectionManagerProvider)?.isConnected == true;
+    final obdConnected = ref.watch(obdConnectedProvider);
     final gear = ref.watch(gearEstimatorProvider);
 
-    final tempColor = data.coolantTempC >= 100 ? AppColors.red : AppColors.cyan;
-    final voltColor = data.batteryVoltage < 12.3 ? AppColors.orange : AppColors.purple;
-    final fuelKnown = obdConnected && data.fuelLevelPercent > 0;
+    final live = obdConnected && data.hasData;
+    final tempColor = live && data.coolantTempC >= 100 ? AppColors.red : AppColors.cyan;
+    final voltColor = live && data.batteryVoltage < 12.3 ? AppColors.orange : AppColors.purple;
+    final fuelLevel = data.fuelLevelPercent;
+    final fuelKnown = live && fuelLevel != null;
 
     final stats = <Widget>[
       _MiniStat(
         icon: Icons.thermostat_rounded,
         color: tempColor,
         label: 'Suhu mesin',
-        value: data.coolantTempC,
+        value: live ? data.coolantTempC : null,
         unit: '°C',
         progress: data.coolantTempC / 130,
       ),
@@ -70,7 +72,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
         icon: Icons.battery_charging_full_rounded,
         color: voltColor,
         label: 'Voltase aki',
-        value: data.batteryVoltage,
+        value: live ? data.batteryVoltage : null,
         decimals: 1,
         unit: 'V',
         progress: (data.batteryVoltage - 10) / 5,
@@ -79,10 +81,10 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
         icon: Icons.local_gas_station_rounded,
         color: AppColors.blue,
         label: 'Level BBM',
-        value: fuelKnown ? data.fuelLevelPercent : null,
+        value: fuelKnown ? fuelLevel : null,
         unit: '%',
-        progress: data.fuelLevelPercent / 100,
-        unknownHint: obdConnected ? 'Tidak dilaporkan ECU' : null,
+        progress: (fuelLevel ?? 0) / 100,
+        unknownHint: live ? 'Tidak dilaporkan ECU' : null,
       ),
       _ObdStatusStat(connected: obdConnected),
     ];

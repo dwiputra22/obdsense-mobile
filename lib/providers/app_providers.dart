@@ -72,6 +72,43 @@ final obdProvider = Provider<ObdService?>((ref) {
   return service;
 });
 
+final obdLinkStatusProvider =
+    StateNotifierProvider<ObdLinkNotifier, ObdLinkStatus>((ref) {
+  return ObdLinkNotifier(ref);
+});
+
+final obdConnectedProvider = Provider<bool>((ref) {
+  return ref.watch(obdLinkStatusProvider) == ObdLinkStatus.connected;
+});
+
+class ObdLinkNotifier extends StateNotifier<ObdLinkStatus> {
+  StreamSubscription<ObdLinkStatus>? _sub;
+
+  ObdLinkNotifier(Ref ref) : super(ObdLinkStatus.disconnected) {
+    _attach(ref.read(obdConnectionManagerProvider));
+    ref.listen<ObdConnectionManager?>(obdConnectionManagerProvider, (_, next) {
+      _attach(next);
+    });
+  }
+
+  void _attach(ObdConnectionManager? manager) {
+    _sub?.cancel();
+    _sub = null;
+    if (manager == null) {
+      state = ObdLinkStatus.disconnected;
+      return;
+    }
+    state = manager.status;
+    _sub = manager.statusStream.listen((s) => state = s);
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+}
+
 final aiDiagnosisProvider = Provider<AiDiagnosisService>((ref) {
   return AiDiagnosisService();
 });
@@ -87,7 +124,7 @@ final dtcHistoryProvider = Provider<DtcHistoryService>((ref) {
 final currentAnomaliesProvider = Provider<List<Anomaly>>((ref) {
   final vin = ref.watch(vehicleProfileProvider).vin;
   final data = ref.watch(telemetryProvider);
-  if (vin == null) return [];
+  if (vin == null || !data.hasData) return [];
   final baselineService = ref.read(vehicleBaselineProvider);
   return AnomalyDetector.detect(vin, data, baselineService);
 });
@@ -115,6 +152,7 @@ class TelemetryNotifier extends StateNotifier<TelemetryData> {
   StreamSubscription? _sub;
   StreamSubscription? _extraSub;
   Timer? _retryTimer;
+  Timer? _tripGraceTimer;
   DateTime? _lastTelemetrySyncAt;
   Future<void>? _telemetrySyncInFlight;
   bool _highTempNotified = false;
@@ -130,16 +168,25 @@ class TelemetryNotifier extends StateNotifier<TelemetryData> {
       syncService.retryPending();
     });
 
+    ref.listen<ObdLinkStatus>(obdLinkStatusProvider, (_, next) => _onLinkStatus(next));
+
     ref.listen<ObdService?>(obdProvider, (_, next) async {
       await _sub?.cancel();
       await _extraSub?.cancel();
-      if (next == null) return;
+      if (next == null) {
+        _resetToEmpty();
+        return;
+      }
 
       _extraSub = next.extraSensorsStream.listen((readings) {
         ref.read(extraSensorsProvider.notifier).state = readings;
       });
 
       _sub = next.telemetryStream.listen((event) async {
+        if (!event.hasData) {
+          _resetToEmpty();
+          return;
+        }
         state = event;
         ref.read(tripControllerProvider.notifier).addTelemetrySample(event);
         ref.read(dataRecordingProvider).addSample(event);
@@ -210,17 +257,54 @@ class TelemetryNotifier extends StateNotifier<TelemetryData> {
     });
   }
 
+  void _resetToEmpty() {
+    state = TelemetryData.empty();
+    ref.read(extraSensorsProvider.notifier).state = {};
+    _anomalyNotifiedSensors.clear();
+    _highTempNotified = false;
+  }
+
+  void _onLinkStatus(ObdLinkStatus status) {
+    switch (status) {
+      case ObdLinkStatus.connected:
+        _tripGraceTimer?.cancel();
+        _tripGraceTimer = null;
+        break;
+      case ObdLinkStatus.reconnecting:
+        _resetToEmpty();
+        _tripGraceTimer ??= Timer(const Duration(minutes: 2), () {
+          _tripGraceTimer = null;
+          if (ref.read(tripRecorderProvider).isRecording) {
+            ref.read(tripControllerProvider.notifier).stopTrip();
+          }
+        });
+        break;
+      case ObdLinkStatus.disconnected:
+        _resetToEmpty();
+        _tripGraceTimer?.cancel();
+        _tripGraceTimer = null;
+        if (ref.read(tripRecorderProvider).isRecording) {
+          ref.read(tripControllerProvider.notifier).stopTrip();
+        }
+        break;
+      case ObdLinkStatus.connecting:
+        break;
+    }
+  }
+
   @override
   void dispose() {
     _sub?.cancel();
     _extraSub?.cancel();
     _retryTimer?.cancel();
+    _tripGraceTimer?.cancel();
     super.dispose();
   }
 }
 
 final aiInsightsProvider = Provider<List<AiInsight>>((ref) {
   final data = ref.watch(telemetryProvider);
+  if (!data.hasData) return const <AiInsight>[];
   return ref.read(aiDiagnosisProvider).analyze(data);
 });
 
@@ -299,6 +383,7 @@ class TripController extends StateNotifier<List<TripRecord>> {
   }
 
   void addTelemetrySample(TelemetryData data) {
+    if (!data.hasData) return;
     recorder.addSample(data);
   }
 

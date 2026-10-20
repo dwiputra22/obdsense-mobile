@@ -21,6 +21,8 @@ class ObdCommandQueue {
   StreamSubscription<String>? _sub;
   StringBuffer _buffer = StringBuffer();
 
+  DateTime lastReplyAt = DateTime.now();
+
   ObdCommandQueue(this.transport);
 
   Future<String> send(
@@ -53,6 +55,7 @@ class ObdCommandQueue {
           _buffer.write(chunk);
           final current = _buffer.toString();
           if (current.contains('>') && !responseCompleter.isCompleted) {
+            lastReplyAt = DateTime.now();
             responseCompleter.complete(current);
           }
         });

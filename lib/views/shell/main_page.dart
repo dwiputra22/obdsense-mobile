@@ -12,6 +12,7 @@ import '../trips/trips_page.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/auto_trip_settings_provider.dart';
 import '../../providers/navigation_provider.dart';
+import '../onboarding/initial_setup_sheet.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -24,6 +25,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   late final PageController _pageController;
   Timer? _exitPromptTimer;
   bool _exitPromptVisible = false;
+  bool _setupChecked = false;
 
   static const _pages = [
     DashboardPage(),
@@ -37,6 +39,14 @@ class _MainShellState extends ConsumerState<MainShell> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: ref.read(currentTabIndexProvider));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeRunInitialSetup());
+  }
+
+  void _maybeRunInitialSetup() {
+    if (_setupChecked || !mounted) return;
+    if (!ref.read(splashDoneProvider)) return;
+    _setupChecked = true;
+    showInitialSetupIfNeeded(context, ref);
   }
 
   @override
@@ -104,6 +114,10 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(splashDoneProvider, (previous, next) {
+      if (next) _maybeRunInitialSetup();
+    });
+
     ref.listen<int>(currentTabIndexProvider, (previous, next) {
       if (_pageController.hasClients && _pageController.page?.round() != next) {
         _pageController.animateToPage(
