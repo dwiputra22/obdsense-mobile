@@ -516,6 +516,9 @@ const Map<String, String> enOfId = <String, String>{
   'Terdeteksi {0} kali di sekitar titik ini. Nilai sensor menyimpang dari kebiasaan kendaraan Anda.': 'Detected {0} times near this point. The sensor value deviates from your vehicle\'s usual pattern.',
   'Catatan sepanjang rute ({0})': 'Notes along the route ({0})',
   'Tahun kendaraan tidak valid (1980–{0}).': 'Invalid vehicle year (1980–{0}).',
+  'VIN kendaraan': 'Vehicle VIN',
+  'Contoh: 1HGCM82633A004352': 'Example: 1HGCM82633A004352',
+  'VIN ada di STNK atau bodi kendaraan. Huruf I, O, dan Q tidak dipakai.': 'The VIN is on the registration card or vehicle body. The letters I, O, and Q are not used.',
 };
 
 const Map<String, String> idOfEn = <String, String>{

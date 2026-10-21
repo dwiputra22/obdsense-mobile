@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/services.dart';
 import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -275,20 +276,73 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
                   label: Text(_showManualVinInput ? 'Tutup input VIN manual' : 'Input VIN secara manual'),
                 ),
                 if (_showManualVinInput) ...[
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: vinCtrl,
-                    textCapitalization: TextCapitalization.characters,
-                    maxLength: 17,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    decoration: const InputDecoration(
-                      labelText: 'VIN kendaraan',
-                      hintText: 'Contoh: 1HGCM82633A004352',
-                      prefixIcon: Icon(Icons.directions_car_filled_outlined),
-                      helperText: 'Masukkan 17 karakter VIN pada STNK atau bodi kendaraan.',
+                  const SizedBox(height: 10),
+                  // Field ditaruh di panel terang sendiri: kartu induk berwarna
+                  // gelap, sehingga label, helper, dan counter bawaan (warna
+                  // gelap) sebelumnya tidak terbaca / terpotong.
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
+                    decoration: BoxDecoration(
+                      color: palette.panel,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: vinCtrl,
+                          textCapitalization: TextCapitalization.characters,
+                          maxLength: 17,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                          inputFormatters: [
+                            // VIN hanya huruf A-Z (tanpa I, O, Q) dan angka.
+                            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                            FilteringTextInputFormatter.deny(RegExp(r'[IOQioq]')),
+                            TextInputFormatter.withFunction(
+                              (old, next) => next.copyWith(text: next.text.toUpperCase()),
+                            ),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: tr('VIN kendaraan'),
+                            hintText: tr('Contoh: 1HGCM82633A004352'),
+                            prefixIcon: const Icon(Icons.directions_car_filled_outlined),
+                            counterText: '',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: vinCtrl,
+                          builder: (context, value, _) {
+                            final len = value.text.length;
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'VIN ada di STNK atau bodi kendaraan. Huruf I, O, dan Q tidak dipakai.',
+                                    style: TextStyle(color: palette.muted, fontSize: 11.5, height: 1.35),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  '$len/17',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: len == 17 ? AppColors.green : palette.muted,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
