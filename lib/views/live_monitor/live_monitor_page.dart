@@ -249,7 +249,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
                         title: title,
                         icon: icon,
                         color: color,
-                        value: obdConnected ? value : '—',
+                        value: obdConnected ? value : '-',
                         unit: unit,
                         chart: SeriesChart(
                           points: _series(s, pick, start),
@@ -508,7 +508,7 @@ class _ChartPanel extends StatelessWidget {
 }
 
 /// Kartu status kecil di bawah gauge: ikon, label, angka, dan bar progres.
-/// [value] null = tidak tersedia (ditampilkan "—").
+/// [value] null = tidak tersedia (ditampilkan "-").
 class _MiniStat extends StatelessWidget {
   const _MiniStat({
     required this.icon,
@@ -560,7 +560,7 @@ class _MiniStat extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (value == null)
-            Text('—', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: palette.muted, height: 1.0))
+            Text('-', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: palette.muted, height: 1.0))
           else
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,

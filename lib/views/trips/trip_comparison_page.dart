@@ -98,7 +98,7 @@ class _TripComparisonPageState extends ConsumerState<TripComparisonPage> {
   }
 
   String _kmPerLiterText(TripRecord t) =>
-      t.avgKmPerLiter > 0 ? '${t.avgKmPerLiter.toStringAsFixed(1)} km/L' : '—';
+      t.avgKmPerLiter > 0 ? '${t.avgKmPerLiter.toStringAsFixed(1)} km/L' : '-';
 
   Widget _row(String label, String a, String b, {bool? betterIsLower}) {
     Color colorFor(String raw, String other) {
