@@ -1,4 +1,7 @@
 class AppConstants {
+  static const String appName = 'RushSense AI';
+  static const String appFileSlug = 'rushsense';
+
   static const String apiBaseUrl = 'https://rushsense-api-production.up.railway.app/api';
 
   static const Duration telemetryPollInterval = Duration(seconds: 2);

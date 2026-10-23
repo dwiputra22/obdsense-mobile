@@ -48,6 +48,12 @@ class ObdService {
   bool _mafUnsupported = false;
   bool _fuelLevelUnsupported = false;
 
+  bool _mafFuelEstimateAllowed = true;
+
+  void setFuelType(String? fuelType) {
+    _mafFuelEstimateAllowed = fuelType != 'diesel' && fuelType != 'electric';
+  }
+
   Set<String> supportedPids = {};
   List<PidDefinition> availableExtendedPids = [];
   final Map<String, double> _extraSensorReadings = {};
@@ -204,7 +210,7 @@ class ObdService {
         _fuelRateMissCount = 0;
       }
     }
-    if (_fuelRatePidUnsupported && !_mafUnsupported) {
+    if (_fuelRatePidUnsupported && !_mafUnsupported && _mafFuelEstimateAllowed) {
       await _readPid(ObdCommand.maf, '4110', (r) => _maf = ObdParser.parseMaf(r) ?? _maf);
     }
   }
@@ -379,7 +385,9 @@ class ObdService {
     }
     _emittedEmpty = false;
 
-    final fuelRate = _fuelRateDirect ?? FuelEfficiencyCalculator.fuelRateFromMaf(_maf) ?? 0;
+    final fuelRate = _fuelRateDirect ??
+        (_mafFuelEstimateAllowed ? FuelEfficiencyCalculator.fuelRateFromMaf(_maf) : null) ??
+        0;
     _telemetryController.add(TelemetryData(
       rpm: _rpm,
       speed: _speed,

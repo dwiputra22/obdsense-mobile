@@ -4,12 +4,14 @@ import '../../core/i18n/tr_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/vehicle_profile.dart';
+import '../../models/vehicle_spec.dart';
 import '../../providers/app_providers.dart';
 import '../../services/obd/ecu_info_service.dart';
 import '../../core/motion/motion.dart';
 import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
+import '../../widgets/vehicle_form.dart';
 import '../../core/i18n/translations.dart';
 
 class VehicleProfilePage extends ConsumerStatefulWidget {
@@ -20,11 +22,7 @@ class VehicleProfilePage extends ConsumerStatefulWidget {
 }
 
 class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
-  late TextEditingController brandCtrl;
-  late TextEditingController modelCtrl;
-  late TextEditingController yearCtrl;
-  late TextEditingController nicknameCtrl;
-  late TextEditingController engineCtrl;
+  late VehicleFormController _form;
   late TextEditingController vinCtrl;
 
   bool _editing = false;
@@ -40,21 +38,13 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
     _profile = storage.getVehicleProfile() ??
         const VehicleProfile(brand: '', model: '', year: 0, nickname: '', engineName: '');
 
-    brandCtrl = TextEditingController(text: _profile!.brand);
-    modelCtrl = TextEditingController(text: _profile!.model);
-    yearCtrl = TextEditingController(text: _profile!.year > 0 ? _profile!.year.toString() : '');
-    nicknameCtrl = TextEditingController(text: _profile!.nickname);
-    engineCtrl = TextEditingController(text: _profile!.engineName);
+    _form = VehicleFormController(_profile!);
     vinCtrl = TextEditingController(text: _profile!.vin ?? '');
   }
 
   @override
   void dispose() {
-    brandCtrl.dispose();
-    modelCtrl.dispose();
-    yearCtrl.dispose();
-    nicknameCtrl.dispose();
-    engineCtrl.dispose();
+    _form.dispose();
     vinCtrl.dispose();
     super.dispose();
   }
@@ -62,14 +52,14 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
   bool get _obdConnected => ref.watch(obdConnectedProvider);
 
   Future<void> _save() async {
-    final updated = VehicleProfile(
+    final error = _form.validate();
+    if (error != null) {
+      _showMessage(error);
+      return;
+    }
+    final updated = _form.toProfile(
+      _profile!,
       vin: vinCtrl.text.trim().isEmpty ? _profile?.vin : vinCtrl.text.trim().toUpperCase(),
-      remoteId: _profile?.remoteId,
-      brand: brandCtrl.text.trim(),
-      model: modelCtrl.text.trim(),
-      year: int.tryParse(yearCtrl.text.trim()) ?? 0,
-      nickname: nicknameCtrl.text.trim(),
-      engineName: engineCtrl.text.trim(),
     );
 
     await ref.read(localStorageProvider).saveVehicleProfile(updated);
@@ -199,7 +189,13 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
       trailing: RoundIconButton(
         icon: _editing ? Icons.close_rounded : Icons.edit_rounded,
         tooltip: _editing ? 'Batal' : 'Ubah',
-        onTap: () => setState(() => _editing = !_editing),
+        onTap: () => setState(() {
+          if (_editing) {
+            _form.dispose();
+            _form = VehicleFormController(_profile!);
+          }
+          _editing = !_editing;
+        }),
       ),
       children: [
         Reveal(
@@ -271,15 +267,15 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
                 ),
                 const SizedBox(height: 8),
                 TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: hasVin ? palette.onPrimary : null,
+                  ),
                   onPressed: () => setState(() => _showManualVinInput = !_showManualVinInput),
                   icon: const Icon(Icons.keyboard_alt_outlined),
                   label: Text(_showManualVinInput ? 'Tutup input VIN manual' : 'Input VIN secara manual'),
                 ),
                 if (_showManualVinInput) ...[
                   const SizedBox(height: 10),
-                  // Field ditaruh di panel terang sendiri: kartu induk berwarna
-                  // gelap, sehingga label, helper, dan counter bawaan (warna
-                  // gelap) sebelumnya tidak terbaca / terpotong.
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
@@ -375,17 +371,27 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
                     _infoRow(Icons.calendar_today_rounded, 'Tahun', profile.year > 0 ? '${profile.year}' : 'Belum diisi'),
                     _infoRow(Icons.badge_rounded, 'Nama panggilan', _value(profile.nickname)),
                     _infoRow(Icons.settings_rounded, 'Mesin', _value(profile.engineName)),
+                    _infoRow(Icons.local_gas_station_rounded, 'Bahan bakar',
+                        FuelType.parse(profile.fuelType)?.label ?? 'Belum diisi'),
+                    _infoRow(
+                      Icons.settings_input_component_rounded,
+                      'Transmisi',
+                      profile.transmission == null
+                          ? 'Belum diisi'
+                          : CatalogTransmission(type: profile.transmission!, gears: profile.gearCount).label,
+                    ),
+                    _infoRow(
+                      Icons.opacity_rounded,
+                      'Kapasitas tangki',
+                      profile.tankLiters == null ? 'Belum diisi' : '${profile.tankLiters!.toStringAsFixed(profile.tankLiters! % 1 == 0 ? 0 : 1)} L',
+                    ),
                     _infoRow(
                       profile.remoteId != null ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
                       'Server',
                       profile.remoteId != null ? 'Tersinkron #${profile.remoteId}' : 'Belum tersinkron',
                     ),
                   ] else ...[
-                    _field(brandCtrl, 'Merek', Icons.directions_car_rounded),
-                    _field(modelCtrl, 'Model', Icons.car_repair_rounded),
-                    _field(yearCtrl, 'Tahun', Icons.calendar_today_rounded, keyboard: TextInputType.number),
-                    _field(nicknameCtrl, 'Nama panggilan', Icons.badge_rounded),
-                    _field(engineCtrl, 'Kode / tipe mesin', Icons.settings_rounded),
+                    VehicleFormFields(controller: _form),
                     const SizedBox(height: 6),
                     SizedBox(
                       width: double.infinity,
@@ -415,22 +421,6 @@ class _VehicleProfilePageState extends ConsumerState<VehicleProfilePage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _field(TextEditingController controller, String label, IconData icon, {TextInputType? keyboard}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboard,
-        textInputAction: TextInputAction.next,
-        decoration: InputDecoration(
-          labelText: tr(label),
-          prefixIcon: Icon(icon, size: 20),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        ),
-      ),
     );
   }
 

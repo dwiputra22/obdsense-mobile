@@ -78,7 +78,9 @@ class GearSettingsSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Bawaan mengikuti Toyota Rush 1.5: Manual 5 gigi, Automatic 4 gigi. Ubah jumlah gigi bila mobil Anda berbeda.',
+                    estimator.continuous
+                        ? 'Transmisi kendaraan Anda (CVT / e-CVT / listrik) tidak punya gigi tetap, jadi ditampilkan sebagai D. Ubah jenis transmisi di Profil Kendaraan bila keliru.'
+                        : 'Nilai awal mengikuti data kendaraan di Profil Kendaraan; jika belum diisi: Manual 5 gigi, Automatic 4 gigi. Ubah jumlah gigi bila mobil Anda berbeda.',
                     style: TextStyle(color: palette.muted, fontSize: 11.5, height: 1.35),
                   ),
                   const SizedBox(height: 14),

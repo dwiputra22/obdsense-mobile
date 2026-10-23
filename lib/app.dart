@@ -28,12 +28,14 @@ import 'providers/app_providers.dart';
 import 'providers/gear_provider.dart';
 import 'providers/live_history_provider.dart';
 import 'providers/navigation_provider.dart';
+import 'providers/vehicle_spec_provider.dart';
 import 'providers/theme_provider.dart';
 
 // Import service untuk inisialisasi di latar belakang splash
 import 'services/intelligence/dtc_history_service.dart';
 import 'services/intelligence/vehicle_baseline_service.dart';
 import 'services/notifications/notification_service.dart';
+import 'core/constants/app_constants.dart';
 
 class RushSenseApp extends StatefulWidget {
   const RushSenseApp({super.key});
@@ -190,9 +192,10 @@ class _MainAppContent extends ConsumerWidget {
     ref.read(liveHistoryProvider);
     ref.read(gearEstimatorProvider);
     ref.read(telemetryProvider);
+    ref.read(vehicleSpecSyncProvider);
 
     return MaterialApp.router(
-      title: 'RushSense AI',
+      title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

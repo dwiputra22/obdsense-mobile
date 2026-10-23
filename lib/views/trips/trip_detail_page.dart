@@ -399,9 +399,11 @@ class _TripMapSectionState extends State<_TripMapSection> {
 
   void _openFullscreen() {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => _FullscreenRoutePage(trip: widget.trip, clusters: _clusters),
+      PageRouteBuilder<void>(
+        opaque: true,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _FullscreenRoutePage(trip: widget.trip, clusters: _clusters),
       ),
     );
   }
@@ -472,6 +474,15 @@ class _FullscreenRoutePage extends StatefulWidget {
 
 class _FullscreenRoutePageState extends State<_FullscreenRoutePage> {
   GoogleMapController? _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _ready = true);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -479,11 +490,16 @@ class _FullscreenRoutePageState extends State<_FullscreenRoutePage> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: _RouteMapView(
-              trip: widget.trip,
-              clusters: widget.clusters,
-              onController: (c) => _controller = c,
-            ),
+            child: _ready
+                ? SizedBox.expand(
+                    child: _RouteMapView(
+                      key: ValueKey('fullscreen_map_${widget.trip.hashCode}'),
+                      trip: widget.trip,
+                      clusters: widget.clusters,
+                      onController: (c) => _controller = c,
+                    ),
+                  )
+                : const Center(child: CircularProgressIndicator()),
           ),
           SafeArea(
             child: Padding(
@@ -538,7 +554,7 @@ Future<void> _fitRoute(GoogleMapController? controller, TripRecord trip) async {
 }
 
 class _RouteMapView extends StatelessWidget {
-  const _RouteMapView({required this.trip, required this.clusters, this.onController});
+  const _RouteMapView({super.key, required this.trip, required this.clusters, this.onController});
 
   final TripRecord trip;
   final List<_EventCluster> clusters;

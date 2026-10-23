@@ -7,6 +7,11 @@ class VehicleProfile {
   final String nickname;
   final String engineName;
 
+  final String? fuelType;
+  final String? transmission;
+  final int? gearCount;
+  final double? tankLiters;
+
   const VehicleProfile({
     this.vin,
     this.remoteId,
@@ -15,6 +20,10 @@ class VehicleProfile {
     required this.year,
     required this.nickname,
     required this.engineName,
+    this.fuelType,
+    this.transmission,
+    this.gearCount,
+    this.tankLiters,
   });
 
   Map<String, dynamic> toJson() {
@@ -26,6 +35,10 @@ class VehicleProfile {
       'year': year,
       'nickname': nickname,
       'engineName': engineName,
+      'fuelType': fuelType,
+      'transmission': transmission,
+      'gearCount': gearCount,
+      'tankLiters': tankLiters,
     };
   }
 
@@ -38,6 +51,10 @@ class VehicleProfile {
       year: json['year'] as int,
       nickname: json['nickname'] as String,
       engineName: json['engineName'] as String,
+      fuelType: json['fuelType'] as String?,
+      transmission: json['transmission'] as String?,
+      gearCount: (json['gearCount'] as num?)?.toInt(),
+      tankLiters: (json['tankLiters'] as num?)?.toDouble(),
     );
   }
 
@@ -49,6 +66,10 @@ class VehicleProfile {
     int? year,
     String? nickname,
     String? engineName,
+    String? fuelType,
+    String? transmission,
+    int? gearCount,
+    double? tankLiters,
   }) {
     return VehicleProfile(
       vin: vin ?? this.vin,
@@ -58,6 +79,10 @@ class VehicleProfile {
       year: year ?? this.year,
       nickname: nickname ?? this.nickname,
       engineName: engineName ?? this.engineName,
+      fuelType: fuelType ?? this.fuelType,
+      transmission: transmission ?? this.transmission,
+      gearCount: gearCount ?? this.gearCount,
+      tankLiters: tankLiters ?? this.tankLiters,
     );
   }
 }

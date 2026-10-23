@@ -15,7 +15,7 @@ class GearInput {
   final bool connected;
 }
 
-enum GearState { off, standstill, learning, shifting, gear, reverse, neutral }
+enum GearState { off, standstill, learning, shifting, gear, reverse, neutral, continuous }
 
 @immutable
 class GearReading {
@@ -52,6 +52,8 @@ class GearReading {
         return 'R';
       case GearState.neutral:
         return 'N';
+      case GearState.continuous:
+        return 'D';
     }
   }
 
@@ -114,6 +116,10 @@ class GearEstimator extends ChangeNotifier {
 
   bool automatic = true;
   bool learning = true;
+
+  bool continuous = false;
+  String? _vehicleKey;
+  void Function()? _pendingVehicle;
   final GearProfile _manual = GearProfile(count: 5);
   final GearProfile _auto = GearProfile(count: 4);
   GearProfile get profile => automatic ? _auto : _manual;
@@ -148,6 +154,8 @@ class GearEstimator extends ChangeNotifier {
         final j = jsonDecode(raw) as Map<String, dynamic>;
         automatic = j['automatic'] as bool? ?? true;
         learning = j['learning'] as bool? ?? true;
+        continuous = j['continuous'] as bool? ?? false;
+        _vehicleKey = j['vehicleKey'] as String?;
         final m = GearProfile.fromJson(j['manual'] as Map<String, dynamic>?, 5);
         final a = GearProfile.fromJson(j['auto'] as Map<String, dynamic>?, 4);
         _manual
@@ -163,6 +171,9 @@ class GearEstimator extends ChangeNotifier {
       // Pengaturan rusak/tidak terbaca: pakai bawaan.
     }
     _loaded = true;
+    final pending = _pendingVehicle;
+    _pendingVehicle = null;
+    pending?.call();
     notifyListeners();
   }
 
@@ -174,6 +185,8 @@ class GearEstimator extends ChangeNotifier {
         jsonEncode({
           'automatic': automatic,
           'learning': learning,
+          'continuous': continuous,
+          'vehicleKey': _vehicleKey,
           'manual': _manual.toJson(),
           'auto': _auto.toJson(),
         }),
@@ -182,6 +195,32 @@ class GearEstimator extends ChangeNotifier {
   }
 
   // ----------------------------------------------------------------- actions
+  void applyVehicle({
+    required String key,
+    required bool automatic,
+    required bool continuous,
+    int? gears,
+  }) {
+    if (!_loaded) {
+      _pendingVehicle = () => applyVehicle(key: key, automatic: automatic, continuous: continuous, gears: gears);
+      return;
+    }
+    if (_vehicleKey == key) return;
+    _vehicleKey = key;
+    this.automatic = automatic;
+    this.continuous = continuous;
+    _manual
+      ..ratios = List<double?>.filled(_manual.count, null)
+      ..reverse = null;
+    _auto
+      ..ratios = List<double?>.filled(_auto.count, null)
+      ..reverse = null;
+    if (gears != null && !continuous) {
+      (automatic ? _auto : _manual).resize(gears.clamp(3, 8));
+    }
+    _onProfileChanged();
+  }
+
   void setAutomatic(bool value) {
     if (automatic == value) return;
     automatic = value;
@@ -300,6 +339,9 @@ class GearEstimator extends ChangeNotifier {
     } else if (inp.speed < 3) {
       _resetTracking();
       next = GearReading(state: GearState.standstill, automatic: automatic, known: p.known, total: p.count);
+    } else if (continuous) {
+      _resetTracking();
+      next = GearReading(state: GearState.continuous, automatic: true, known: p.known, total: p.count);
     } else {
       final r = inp.rpm / inp.speed;
       final steady = inp.speed >= 15 &&

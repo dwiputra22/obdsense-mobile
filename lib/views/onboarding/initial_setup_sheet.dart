@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../../core/i18n/tr_text.dart';
 import '../../core/i18n/translations.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
@@ -9,6 +8,8 @@ import '../../models/vehicle_profile.dart';
 import '../../providers/app_providers.dart';
 import '../../services/permissions/permission_service.dart';
 import '../../widgets/ui_kit.dart';
+import '../../widgets/vehicle_form.dart';
+import '../../core/constants/app_constants.dart';
 
 const _vinDeferredKey = 'setup_vin_deferred';
 
@@ -52,11 +53,7 @@ class _InitialSetupSheet extends ConsumerStatefulWidget {
 class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with WidgetsBindingObserver {
   final _permissions = PermissionService();
 
-  late final TextEditingController _brand;
-  late final TextEditingController _model;
-  late final TextEditingController _year;
-  late final TextEditingController _nickname;
-  late final TextEditingController _engine;
+  late final VehicleFormController _form;
   late final TextEditingController _vin;
 
   PermissionSnapshot? _perms;
@@ -72,11 +69,7 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
     WidgetsBinding.instance.addObserver(this);
     _existing = ref.read(localStorageProvider).getVehicleProfile() ??
         const VehicleProfile(brand: '', model: '', year: 0, nickname: '', engineName: '');
-    _brand = TextEditingController(text: _existing.brand);
-    _model = TextEditingController(text: _existing.model);
-    _year = TextEditingController(text: _existing.year > 0 ? '${_existing.year}' : '');
-    _nickname = TextEditingController(text: _existing.nickname);
-    _engine = TextEditingController(text: _existing.engineName);
+    _form = VehicleFormController(_existing);
     _vin = TextEditingController(text: _existing.vin ?? '');
     _load();
   }
@@ -106,11 +99,7 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _brand.dispose();
-    _model.dispose();
-    _year.dispose();
-    _nickname.dispose();
-    _engine.dispose();
+    _form.dispose();
     _vin.dispose();
     super.dispose();
   }
@@ -122,13 +111,8 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
   String _normalizedVin() => _vin.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
 
   String? _validateVehicle() {
-    if (_brand.text.trim().isEmpty) return 'Merek kendaraan wajib diisi.';
-    if (_model.text.trim().isEmpty) return 'Model kendaraan wajib diisi.';
-    final year = int.tryParse(_year.text.trim());
-    final maxYear = DateTime.now().year + 1;
-    if (year == null || year < 1980 || year > maxYear) {
-      return 'Tahun kendaraan tidak valid (1980–$maxYear).';
-    }
+    final error = _form.validate();
+    if (error != null) return error;
     final vin = _normalizedVin();
     if (vin.isNotEmpty && (vin.length != 17 || RegExp(r'[IOQ]').hasMatch(vin))) {
       return 'VIN harus 17 karakter dan tidak boleh mengandung huruf I, O, atau Q.';
@@ -138,15 +122,7 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
 
   Future<void> _saveVehicle() async {
     final vin = _normalizedVin();
-    final updated = VehicleProfile(
-      vin: vin.isEmpty ? _existing.vin : vin,
-      remoteId: _existing.remoteId,
-      brand: _brand.text.trim(),
-      model: _model.text.trim(),
-      year: int.parse(_year.text.trim()),
-      nickname: _nickname.text.trim(),
-      engineName: _engine.text.trim(),
-    );
+    final updated = _form.toProfile(_existing, vin: vin.isEmpty ? _existing.vin : vin);
     await ref.read(localStorageProvider).saveVehicleProfile(updated);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_vinDeferredKey, updated.vin == null || updated.vin!.isEmpty);
@@ -217,7 +193,7 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Siapkan RushSense AI',
+                            Text('Siapkan ${AppConstants.appName}',
                                 style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
                             const SizedBox(height: 2),
                             Text('Beri izin dan isi data kendaraan agar fitur berjalan akurat.',
@@ -248,12 +224,7 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
                     const SizedBox(height: 20),
                     _sectionLabel(_needPerms ? '2. Data kendaraan' : 'Data kendaraan'),
                     const SizedBox(height: 12),
-                    _field(_brand, 'Merek', Icons.directions_car_rounded, hint: 'Contoh: Toyota'),
-                    _field(_model, 'Model', Icons.car_repair_rounded, hint: 'Contoh: Avanza'),
-                    _field(_year, 'Tahun', Icons.calendar_today_rounded,
-                        keyboard: TextInputType.number, hint: 'Contoh: 2019', digitsOnly: true, maxLength: 4),
-                    _field(_nickname, 'Nama panggilan (opsional)', Icons.badge_rounded),
-                    _field(_engine, 'Kode / tipe mesin (opsional)', Icons.settings_rounded),
+                    VehicleFormFields(controller: _form, collapseTechnical: true),
                     TextField(
                       controller: _vin,
                       textCapitalization: TextCapitalization.characters,
@@ -341,34 +312,6 @@ class _InitialSetupSheetState extends ConsumerState<_InitialSetupSheet> with Wid
             size: 22,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _field(
-    TextEditingController controller,
-    String label,
-    IconData icon, {
-    TextInputType? keyboard,
-    String? hint,
-    bool digitsOnly = false,
-    int? maxLength,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboard,
-        maxLength: maxLength,
-        textInputAction: TextInputAction.next,
-        inputFormatters: digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
-        decoration: InputDecoration(
-          labelText: tr(label),
-          hintText: hint == null ? null : tr(hint),
-          counterText: '',
-          prefixIcon: Icon(icon, size: 20),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        ),
       ),
     );
   }

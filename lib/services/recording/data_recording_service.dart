@@ -2,6 +2,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../models/recording_session.dart';
 import '../../models/telemetry_data.dart';
+import '../../core/constants/app_constants.dart';
 
 class DataRecordingService {
   final List<TelemetryData> _samples = [];
@@ -62,7 +63,7 @@ class DataRecordingService {
 
   Future<String> exportToFile(RecordingSession session) async {
     final dir = await getTemporaryDirectory();
-    final filename = 'rushsense_recording_${session.startedAt.millisecondsSinceEpoch}.csv';
+    final filename = '${AppConstants.appFileSlug}_recording_${session.startedAt.millisecondsSinceEpoch}.csv';
     final file = File('${dir.path}/$filename');
     await file.writeAsString(toCsv(session));
     return file.path;

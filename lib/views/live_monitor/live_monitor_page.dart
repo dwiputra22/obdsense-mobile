@@ -58,6 +58,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
     final voltColor = live && data.batteryVoltage < 12.3 ? AppColors.orange : AppColors.purple;
     final fuelLevel = data.fuelLevelPercent;
     final fuelKnown = live && fuelLevel != null;
+    final tankLiters = ref.watch(vehicleProfileProvider).tankLiters;
 
     final stats = <Widget>[
       _MiniStat(
@@ -82,7 +83,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
         color: AppColors.blue,
         label: 'Level BBM',
         value: fuelKnown ? fuelLevel : null,
-        unit: '%',
+        unit: fuelKnown && tankLiters != null ? '% · ≈${(fuelLevel * tankLiters / 100).toStringAsFixed(0)} L' : '%',
         progress: (fuelLevel ?? 0) / 100,
         unknownHint: live ? 'Tidak dilaporkan ECU' : null,
       ),
@@ -370,6 +371,7 @@ class _LiveMonitorPageState extends ConsumerState<LiveMonitorPage> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => _TemplateSheet(
         initial: current,
         onApply: (t) => ref.read(gaugeTemplateProvider.notifier).setTemplate(t),
@@ -676,7 +678,7 @@ class _CenterPanel extends StatelessWidget {
       animation: estimator,
       builder: (context, _) {
         final r = estimator.reading;
-        final isGear = r.state == GearState.gear;
+        final isGear = r.state == GearState.gear || r.state == GearState.continuous;
         final label = r.label;
         final color = isGear ? AppColors.cyan : palette.muted;
         return PressScale(
@@ -770,7 +772,7 @@ class _TemplateSheetState extends State<_TemplateSheet> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,

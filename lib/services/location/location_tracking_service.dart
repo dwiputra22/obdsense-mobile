@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../models/geo_point.dart';
 import '../permissions/permission_service.dart';
 import '../../core/i18n/translations.dart';
+import '../../core/constants/app_constants.dart';
 
 class LocationTrackingService {
   StreamSubscription<Position>? _sub;
@@ -43,7 +44,7 @@ class LocationTrackingService {
         intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: ForegroundNotificationConfig(
           notificationTitle: tr('Merekam trip'),
-          notificationText: tr('RushSense AI sedang merekam rute perjalanan Anda'),
+          notificationText: tr('${AppConstants.appName} sedang merekam rute perjalanan Anda'),
           enableWakeLock: true,
         ),
       );

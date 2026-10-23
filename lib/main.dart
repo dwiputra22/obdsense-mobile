@@ -6,6 +6,7 @@ import 'app.dart';
 import 'core/i18n/app_language.dart';
 import 'data/local/local_storage_service.dart';
 import 'providers/app_providers.dart';
+import 'services/catalog/vehicle_catalog_service.dart';
 import 'services/notifications/notification_service.dart';
 
 Future<void> main() async {
@@ -14,6 +15,8 @@ Future<void> main() async {
   await initializeDateFormatting('id_ID', null);
   await initializeDateFormatting('en_US', null);
   await AppLanguage.instance.load();
+
+  await VehicleCatalog.load();
 
   final storage = LocalStorageService();
   await storage.init();

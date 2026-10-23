@@ -68,6 +68,11 @@ final obdProvider = Provider<ObdService?>((ref) {
   final manager = ref.watch(obdConnectionManagerProvider);
   if (manager == null) return null;
   final service = ObdService(manager);
+  ref.listen<VehicleProfile>(
+    vehicleProfileProvider,
+    (_, next) => service.setFuelType(next.fuelType),
+    fireImmediately: true,
+  );
   ref.onDispose(service.dispose);
   return service;
 });

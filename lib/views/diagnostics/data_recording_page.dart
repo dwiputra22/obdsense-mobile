@@ -11,6 +11,7 @@ import '../../widgets/app_page.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/ui_kit.dart';
 import '../../core/i18n/translations.dart';
+import '../../core/constants/app_constants.dart';
 
 class DataRecordingPage extends ConsumerStatefulWidget {
   const DataRecordingPage({super.key});
@@ -158,7 +159,7 @@ class _DataRecordingPageState extends ConsumerState<DataRecordingPage> {
     try {
       final recorder = ref.read(dataRecordingProvider);
       final path = await recorder.exportToFile(_lastSession!);
-      await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: tr('Rekaman OBD RushSense AI')));
+      await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: tr('Rekaman OBD ${AppConstants.appName}')));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal export: $e')));

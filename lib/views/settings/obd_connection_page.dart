@@ -313,7 +313,8 @@ class _ObdConnectionPageState extends ConsumerState<ObdConnectionPage> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: connected ? palette.onPrimary : AppColors.red,
-                        side: BorderSide(color: connected ? palette.onPrimary.withValues(alpha: 0.5) : AppColors.red),
+                        backgroundColor: connected ? palette.onPrimary.withValues(alpha: 0.12) : Colors.transparent,
+                        side: BorderSide(color: connected ? palette.onPrimary.withValues(alpha: 0.6) : AppColors.red),
                       ),
                       onPressed: _disconnecting ? null : _disconnect,
                       icon: _disconnecting
